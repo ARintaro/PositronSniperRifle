@@ -9,11 +9,13 @@ enum { LAMBERT_MATERIAL_TYPE = 0, MIRROR_MATERIAL_TYPE = 1};
 using Color = uchar4;
 
 struct Material {
+	float3 albedo = make_float3(0, 0, 0);
+	float3 emission = make_float3(0, 0, 0);
+
 	int programIndex;
 };
 
 struct MeshShaderBindingData {
-	float3 color;
 	float3* vertex;
 	int3* index;
 
@@ -23,9 +25,11 @@ struct MeshShaderBindingData {
 struct RenderParams {
 	int2 screenSize {512, 512};
 
-	int samplesPerLaunch = 4;
+	int samplesPerLaunch = 16;
 
-	int maxDepth = 4;
+	float russianRouletteProbability = 0.9f;
+
+	int maxDepth = 512;
 
 	struct Frame {
 		int frameId = 0;

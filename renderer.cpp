@@ -223,7 +223,6 @@ void PathTracer::BuildShaderBindingTable() {
 
 		HitgroupRecord record;
 		CheckOptiXErrors(optixSbtRecordPackHeader(hitPrograms[objectType], &record));
-		record.data.color = meshes[i].color;
 		record.data.vertex = (float3*)vertexBuffers[i].GetDevicePointer();
 		record.data.index = (int3*)indexBuffers[i].GetDevicePointer();
 		record.data.material = meshes[i].material;

@@ -12,7 +12,6 @@ public:
 
 	void Rotate(float angle, const float3& axis);
 
-	float3 color;
 	std::vector<float3> vertex;
 	std::vector<int3> index;
 

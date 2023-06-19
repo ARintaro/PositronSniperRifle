@@ -14,32 +14,29 @@ extern "C" int main(int ac, char** av) {
     try {
         InitCudaAndOptix();
         
-        Mesh plane, cube, leftPlane, rightPlane;
+        Mesh plane, cube, leftPlane, rightPlane, light;
 
-        plane.color = make_float3(0.1f, 0.1f, 0.1f);
-        cube.color = make_float3(0, 0, 0);
-        leftPlane.color = make_float3(1, 0, 0);
-        rightPlane.color = make_float3(0, 0, 1);
 
         plane.AddCube(make_float3(0, 0, 3), make_float3(3, 3, 0.1f));
         plane.AddCube(make_float3(0, -3, 0), make_float3(3, 0.1f, 3));
         plane.AddCube(make_float3(0, 3, 0), make_float3(3, 0.1f, 3));
 
-        plane.material.programIndex = 0;
+        plane.material.albedo = make_float3(1.f, 1.f, 1.f);
 
         leftPlane.AddCube(make_float3(-3, 0, 0), make_float3(0.1f, 3, 3));
-
-        leftPlane.material.programIndex = 0;
+        leftPlane.material.albedo = make_float3(1, 0, 0);
 
         rightPlane.AddCube(make_float3(3, 0, 0), make_float3(0.1f, 3, 3));
-
-        rightPlane.material.programIndex = 0;
+        rightPlane.material.albedo = make_float3(0, 0, 1);
 
         cube.AddCube(make_float3(-1.5, -1, 0), make_float3(0.75f, 2.f, 0.5f));
-
         cube.Rotate(30, make_float3(0, 1, 0));
+        cube.material.emission = make_float3(0, 1.f, 0);
+        cube.material.albedo = make_float3(1.f, 1.f, 1.f);
 
-        cube.material.programIndex = 1;
+        light.AddCube(make_float3(0, 2.5, 0), make_float3(1, 0.2, 1));
+        light.material.emission = make_float3(1, 1, 1);
+        
 
         PathTracer renderer;
 
@@ -48,6 +45,7 @@ extern "C" int main(int ac, char** av) {
         renderer.AddMesh(std::move(cube));
         renderer.AddMesh(std::move(leftPlane));
         renderer.AddMesh(std::move(rightPlane));
+        renderer.AddMesh(std::move(light));
 
         PathTracerWindow window(&renderer);
 

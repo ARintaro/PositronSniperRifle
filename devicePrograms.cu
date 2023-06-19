@@ -15,9 +15,6 @@ extern "C" __constant__ RenderParams renderParams;
 struct TraceResult {
     int missed = 0;
 
-    float3 emission;
-    float3 albedo;
-
     float3 position;
     float3 normal;
 
@@ -59,8 +56,7 @@ float3 RandomInUnitSphere(unsigned int& seed) {
 }
 
 static __forceinline__ __device__ 
-float3 RandomSampleHemisphere(unsigned int& seed, const float3& normal)
-{
+float3 RandomSampleHemisphere(unsigned int& seed, const float3& normal) {
     const float3 vec_in_sphere = RandomInUnitSphere(seed);
     if (dot(vec_in_sphere, normal) > 0.0f)
         return vec_in_sphere;
@@ -103,10 +99,15 @@ extern "C" __global__ void __raygen__renderFrame() {
         float3 rayOrigin = camera.position;
         float3 rayDir = normalize(camera.direction + (screenPos.y - 0.5f) * camera.vertical + (screenPos.x - 0.5f) * camera.horizontal);
 
-        float attenuation = 1.f;
+        // brdf * cos / pdf(input)
+        float3 attenuation = make_float3(1.f);
 
         for (int depth = 0; depth < renderParams.maxDepth; depth++) {
             traceResult.missed = true;
+
+            if (rnd(seed) > renderParams.russianRouletteProbability) {
+                break;
+            }
 
             RayTrace(rayOrigin, rayDir, RADIANCE_RAY_TYPE, &traceResult);
 
@@ -114,19 +115,20 @@ extern "C" __global__ void __raygen__renderFrame() {
                 break;
             }
 
-            result += traceResult.albedo * attenuation;
-            attenuation *= 0.8f;
+            result += traceResult.material.emission * attenuation;
+
+            attenuation *= traceResult.material.albedo / renderParams.russianRouletteProbability;
 
             rayOrigin = traceResult.position;
-            if (traceResult.material.programIndex == 0) {
-                rayDir = RandomSampleHemisphere(seed, traceResult.normal);
-            } else {
-                rayDir = reflect(rayDir, traceResult.normal);
-                
-            }
+            rayDir = RandomSampleHemisphere(seed, traceResult.normal);
+
         }
 
     }
+
+    // S_1 = E_1 + A_1 * (E_2 + A_2 * S_3)
+    // S_1 = E_1 + A_1 * E_2 + A_1 * A_2 * S_3
+    // S_2 = E_2 + A_2 * S_3;
 
     result /= renderParams.samplesPerLaunch;
 
@@ -162,11 +164,8 @@ extern "C" __global__ void __closesthit__radiance() {
     const float3 rayDir = optixGetWorldRayDirection();
 
     result.missed = false;
-    result.albedo = data.color;
-    result.emission;
-    result.normal = normal;
+    result.normal = -normal;
     result.position = position;
-    // Maybe use a pointer here better ? 
     result.material = data.material;
 }
 
