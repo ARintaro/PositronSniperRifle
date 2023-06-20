@@ -92,6 +92,7 @@ extern "C" __global__ void __raygen__renderFrame() {
     float3 result = make_float3(0);
 
     TraceResult traceResult;
+    
 
     for (int i = 0; i < renderParams.samplesPerLaunch; i++) {
         const float2 screenPos = make_float2(px + rnd(seed), py + rnd(seed)) / make_float2(renderParams.screenSize);
@@ -126,10 +127,6 @@ extern "C" __global__ void __raygen__renderFrame() {
 
     }
 
-    // S_1 = E_1 + A_1 * (E_2 + A_2 * S_3)
-    // S_1 = E_1 + A_1 * E_2 + A_1 * A_2 * S_3
-    // S_2 = E_2 + A_2 * S_3;
-
     result /= renderParams.samplesPerLaunch;
 
     const uint32_t colorBufferIndex = (renderParams.screenSize.x - px - 1) + (renderParams.screenSize.y - py - 1) * renderParams.screenSize.x;
@@ -142,16 +139,18 @@ extern "C" __global__ void __raygen__renderFrame() {
 
     // const uint32_t colorBufferIndex = px + py * renderParams.screenSize.x;
     renderParams.frame.colorBuffer[colorBufferIndex] = result;
-
 }
+
 extern "C" __global__ void __miss__radiance() {
 
 }
 
-extern "C" __global__ void __closesthit__radiance() { 
+extern "C" __global__ void __closesthit__mesh() { 
     TraceResult &result = *GetPerRayData<TraceResult>();
 
-    const MeshShaderBindingData& data = *(const MeshShaderBindingData*)optixGetSbtDataPointer();
+    const ShaderBindingData& sbtData = *(const ShaderBindingData*)optixGetSbtDataPointer();
+    const Material& material = sbtData.material;
+    const DeviceMeshData& data = sbtData.data.mesh;
 
     const int primID = optixGetPrimitiveIndex();
     const int3 index = data.index[primID];
@@ -166,9 +165,24 @@ extern "C" __global__ void __closesthit__radiance() {
     result.missed = false;
     result.normal = -normal;
     result.position = position;
-    result.material = data.material;
+    result.material = material;
 }
 
-extern "C" __global__ void __anyhit__radiance() {
 
+extern "C" __global__ void __closesthit__sphere() {
+    TraceResult& result = *GetPerRayData<TraceResult>();
+
+    const ShaderBindingData& sbtData = *(const ShaderBindingData*)optixGetSbtDataPointer();
+    const Material& material = sbtData.material;
+    const DeviceSphereData& data = sbtData.data.sphere;
+
+    const float3 position = optixGetWorldRayOrigin() + optixGetRayTmax() * optixGetWorldRayDirection();
+    const float3 normal = normalize(position - data.position);
+
+    const float3 rayDir = optixGetWorldRayDirection();
+
+    result.missed = false;
+    result.normal = normal;
+    result.position = position;
+    result.material = material;    
 }

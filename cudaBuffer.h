@@ -8,7 +8,7 @@ class CudaBuffer {
 
 public:
 	constexpr inline CUdeviceptr GetDevicePointer() { return (CUdeviceptr)devicePointer; }
-
+	constexpr inline CUdeviceptr* GetDevicePointerRef() { return (CUdeviceptr*)(&devicePointer); }
 	constexpr inline size_t GetSize() { return size; }
 
 	void Resize(size_t size) {
@@ -53,8 +53,6 @@ public:
 		assert(dataSize == size && devicePointer != nullptr);
 		CheckCudaErrors(cudaMemcpy((void*)hostPointer, devicePointer, dataSize, cudaMemcpyDeviceToHost));
 	}
-
-	
 
 private:
 	size_t size = 0;

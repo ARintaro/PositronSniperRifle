@@ -31,21 +31,34 @@ extern "C" int main(int ac, char** av) {
 
         cube.AddCube(make_float3(-1.5, -1, 0), make_float3(0.75f, 2.f, 0.5f));
         cube.Rotate(30, make_float3(0, 1, 0));
-        cube.material.emission = make_float3(0, 1.f, 0);
         cube.material.albedo = make_float3(1.f, 1.f, 1.f);
 
         light.AddCube(make_float3(0, 2.5, 0), make_float3(1, 0.2, 1));
-        light.material.emission = make_float3(1, 1, 1);
+        // light.material.emission = make_float3(1, 1, 1);
+        light.material.albedo = make_float3(1.f);
         
+        Sphere haha;
+
+        haha.position = make_float3(2, 0, 0);
+        haha.radius = 0.5f;
+        haha.material.albedo = make_float3(1.f, 1.f, 1.f);
+
+        Sphere test;
+        test.position = make_float3(-1, 0, 0);
+        test.radius = 1.f;
+        test.material.emission = make_float3(1.f, 1.f, 1.f);
 
         PathTracer renderer;
 
 
         renderer.AddMesh(std::move(plane));
-        renderer.AddMesh(std::move(cube));
+        // renderer.AddMesh(std::move(cube));
         renderer.AddMesh(std::move(leftPlane));
         renderer.AddMesh(std::move(rightPlane));
         renderer.AddMesh(std::move(light));
+
+        renderer.AddSphere(std::move(haha));
+        renderer.AddSphere(std::move(test));
 
         PathTracerWindow window(&renderer);
 

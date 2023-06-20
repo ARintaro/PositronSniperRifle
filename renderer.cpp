@@ -8,18 +8,6 @@
 #include <optix_function_table_definition.h>
 #include <sutil\sutil.h>
 
-template<typename T>
-struct __align__(OPTIX_SBT_RECORD_ALIGNMENT) SbtRecord
-{
-	__align__(OPTIX_SBT_RECORD_ALIGNMENT) char header[OPTIX_SBT_RECORD_HEADER_SIZE];
-
-	T data;
-};
-
-using RaygenRecord = SbtRecord<void*>;
-using MissRecord = SbtRecord<void*>;
-using HitgroupRecord = SbtRecord<MeshShaderBindingData>;
-
 
 PathTracer::PathTracer() {
 
@@ -36,7 +24,7 @@ void PathTracer::Init() {
 
 	CreateOptixPipeline();
 
-	BuildAccel();
+	BuildAllAccel();
 
 	BuildShaderBindingTable();
 
@@ -55,7 +43,7 @@ void PathTracer::Render() {
 	}
 	
 	renderParams.frame.frameId++;
-	renderParams.traversable = accelHandle;
+	renderParams.traversable = iasHandle;
 	renderParams.frame.subframeCount++;
 	renderParams.frame.colorBuffer = outputBuffer->map();
 
@@ -93,9 +81,12 @@ void PathTracer::Resize(const int2& newSize) {
 	SetCamera(curCameraSetting);
 }
 
-
 void PathTracer::AddMesh(Mesh&& mesh) {
-	meshes.push_back(std::move(mesh));
+	meshes.emplace_back(std::move(mesh));
+}
+
+void PathTracer::AddSphere(Sphere&& sphere) {
+	spheres.emplace_back(std::move(sphere));
 }
 
 void PathTracer::SetCamera(const PathTracerCameraSetting& cameraSetting) {
@@ -124,8 +115,6 @@ void PathTracer::SaveImage(const char* fileName) {
 	buffer.width = outputBuffer->width();
 	buffer.height = outputBuffer->height();
 	buffer.pixel_format = sutil::BufferImageFormat::UNSIGNED_BYTE4;
-
-	
 
 	sutil::saveImage(fileName, buffer, true);
 }
@@ -171,6 +160,9 @@ void PathTracer::CreateOptixModule() {
 	optixPipelineCompileOptions = {};
 	optixPipelineCompileOptions.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_ANY;
 	
+	// Object Type
+	optixPipelineCompileOptions.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_TRIANGLE 
+														| OPTIX_PRIMITIVE_TYPE_FLAGS_SPHERE;
 	// Turn Off Motion Blur
 	optixPipelineCompileOptions.usesMotionBlur = false;
 
@@ -196,7 +188,14 @@ void PathTracer::CreateOptixModule() {
 			&optixModuleCompileOptions, &optixPipelineCompileOptions, input, inputSize, LOG, &LOG_SIZE, &optixModule)
 	);
 	
-	
+	// Get Builtin Sphere IS Module
+	OptixBuiltinISOptions builtinISOptions = {};
+
+	builtinISOptions.usesMotionBlur = false;
+	builtinISOptions.builtinISModuleType = OPTIX_PRIMITIVE_TYPE_SPHERE;
+	CheckOptiXErrorsLog(
+		optixBuiltinISModuleGet(optixDeviceContext, &optixModuleCompileOptions, &optixPipelineCompileOptions, &builtinISOptions, &optixSphereISModule)
+	);
 }
 
 void PathTracer::BuildShaderBindingTable() {
@@ -217,17 +216,18 @@ void PathTracer::BuildShaderBindingTable() {
 	shaderBindingTable.missRecordStrideInBytes = sizeof(MissRecord);
 	shaderBindingTable.missRecordCount = 1;
 
-	vector<HitgroupRecord> hitgroupRecords;
+	vector<HitgroupRecord> hitgroupRecords(meshes.size() + spheres.size());
+
+	int sbtOffset = 0;
 	for (int i = 0; i < meshes.size(); i++) {
-		int objectType = 0;
+		HitgroupRecord& record = hitgroupRecords[i + sbtOffset];
+		meshes[i].GetShaderBindingRecord(record, hitPrograms);
+	}
 
-		HitgroupRecord record;
-		CheckOptiXErrors(optixSbtRecordPackHeader(hitPrograms[objectType], &record));
-		record.data.vertex = (float3*)vertexBuffers[i].GetDevicePointer();
-		record.data.index = (int3*)indexBuffers[i].GetDevicePointer();
-		record.data.material = meshes[i].material;
-
-		hitgroupRecords.push_back(record);
+	sbtOffset += meshes.size();
+	for (int i = 0; i < spheres.size(); i++) {
+		HitgroupRecord& record = hitgroupRecords[i + sbtOffset];
+		spheres[i].GetShaderBindingRecord(record, hitPrograms);
 	}
 
 	hitRecordsBuffer.Upload(hitgroupRecords);
@@ -236,129 +236,51 @@ void PathTracer::BuildShaderBindingTable() {
 	shaderBindingTable.hitgroupRecordCount = (int)hitgroupRecords.size();
 }
 
-void PathTracer::BuildAccel() {
-	vertexBuffers.resize(meshes.size());
-	indexBuffers.resize(meshes.size());
+void PathTracer::BuildAllAccel() {
+	geometryAccelDatas.resize(OBJECT_TYPE_COUNT);
+	// Build Mesh
+	BuildGeometryAccel(meshes, geometryAccelDatas[MESH_OBJECT_TYPE]);
+	// Build Sphere
+	BuildGeometryAccel(spheres, geometryAccelDatas[SPHERE_OBJECT_TYPE]);
 
-	accelHandle = 0;
-
-	vector<OptixBuildInput> triangleInput(meshes.size());
-	vector<CUdeviceptr> deviceVertices(meshes.size());
-	vector<CUdeviceptr> deviceIndices(meshes.size());
-	vector<uint32_t> triangleInputFlags(meshes.size());
-
-	for (int meshId = 0; meshId < meshes.size(); meshId++) {
-		Mesh& mesh = meshes[meshId];
-
-		OptixBuildInput& input = triangleInput[meshId];
-
-		vertexBuffers[meshId].Upload(mesh.vertex);
-		indexBuffers[meshId].Upload(mesh.index);
-
-		input = {};
-		input.type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
-
-		deviceVertices[meshId] = vertexBuffers[meshId].GetDevicePointer();
-		deviceIndices[meshId] = indexBuffers[meshId].GetDevicePointer();
-
-		OptixBuildInputTriangleArray& triangleArray = input.triangleArray;
-
-		triangleArray.vertexFormat = OPTIX_VERTEX_FORMAT_FLOAT3;
-		triangleArray.vertexStrideInBytes = sizeof(float3);
-		triangleArray.numVertices = (int)mesh.vertex.size();
-		triangleArray.vertexBuffers = &deviceVertices[meshId];
-
-		triangleArray.indexFormat = OPTIX_INDICES_FORMAT_UNSIGNED_INT3;
-		triangleArray.indexStrideInBytes = sizeof(int3);
-		triangleArray.numIndexTriplets = (int)mesh.index.size();
-		triangleArray.indexBuffer = deviceIndices[meshId];
-
-		triangleInputFlags[meshId] = 0;
-
-		// SBT Setting
-		triangleArray.flags = &triangleInputFlags[meshId];
-		triangleArray.numSbtRecords = 1;
-		triangleArray.sbtIndexOffsetBuffer = 0;
-		triangleArray.sbtIndexOffsetSizeInBytes = 0;
-		triangleArray.sbtIndexOffsetStrideInBytes = 0;
-	}
-
-	OptixAccelBuildOptions accelOptions = {};
-	accelOptions.buildFlags = OPTIX_BUILD_FLAG_NONE | OPTIX_BUILD_FLAG_ALLOW_COMPACTION;
-	accelOptions.motionOptions.numKeys = 1;
-	accelOptions.operation = OPTIX_BUILD_OPERATION_BUILD;
-
-	OptixAccelBufferSizes blasBufferSizes;
-	CheckOptiXErrors(
-		optixAccelComputeMemoryUsage(
-			optixDeviceContext,
-			&accelOptions,
-			triangleInput.data(),
-			(int)triangleInput.size(),
-			&blasBufferSizes
-		)
-	);
-
-	CudaBuffer compactedSizeBuffer;
-	compactedSizeBuffer.Alloc(sizeof(uint64_t));
-
-	OptixAccelEmitDesc emitDesc;
-	emitDesc.type = OPTIX_PROPERTY_TYPE_COMPACTED_SIZE;
-	emitDesc.result = compactedSizeBuffer.GetDevicePointer();
-
-
-	CudaBuffer tempBuffer;
-	tempBuffer.Alloc(blasBufferSizes.tempSizeInBytes);
-
-	CudaBuffer outputBuffer;
-	outputBuffer.Alloc(blasBufferSizes.outputSizeInBytes);
-
-	CheckOptiXErrors(
-		optixAccelBuild(
-			optixDeviceContext,
-			cudaStream,
-			&accelOptions,
-			triangleInput.data(),
-			(int)triangleInput.size(),
-			tempBuffer.GetDevicePointer(),
-			tempBuffer.GetSize(),
-			outputBuffer.GetDevicePointer(),
-			outputBuffer.GetSize(),
-			&accelHandle,
-			&emitDesc,
-			1
-		)
-	);
-
-	CheckCudaErrors(
-		cudaDeviceSynchronize()
-	);
-
-	uint64_t compactedSize;
-	compactedSizeBuffer.Download(&compactedSize, 1);
-
-	accelStructBuffer.Alloc(compactedSize);
-	
-	CheckOptiXErrors(
-		optixAccelCompact(
-			optixDeviceContext,
-			cudaStream,
-			accelHandle,
-			accelStructBuffer.GetDevicePointer(),
-			accelStructBuffer.GetSize(),
-			&accelHandle
-		)
-	);
-
-	CheckCudaErrors(
-		cudaDeviceSynchronize()
-	);
-
-	outputBuffer.Free();
-	tempBuffer.Free();
-	compactedSizeBuffer.Free();
+	// Build IAS
+	BuildInstanceAccel();
 }
 
+void PathTracer::BuildInstanceAccel() {
+	vector<OptixInstance> instances;
+	uint32_t flags = OPTIX_INSTANCE_FLAG_NONE;
+
+	uint32_t sbtOffset = 0;
+	uint32_t instanceId = 0;
+
+	// Mesh
+	instances.emplace_back(OptixInstance{
+		{1, 0, 0, 0,
+		0, 1, 0, 0,
+		0, 0, 1, 0}, instanceId, sbtOffset, 255,
+		flags, geometryAccelDatas[MESH_OBJECT_TYPE].handle, {0, 0}
+		});
+	sbtOffset += geometryAccelDatas[MESH_OBJECT_TYPE].sbtRecordsCount;
+	instanceId++;
+
+	// Sphere
+	instances.push_back(OptixInstance{
+		{1, 0, 0, 0,
+		0, 1, 0, 0,
+		0, 0, 1, 0}, instanceId, sbtOffset, 255,
+		flags, geometryAccelDatas[SPHERE_OBJECT_TYPE].handle, {0, 0}
+	});
+	
+	instancesBuffer.Upload(instances);
+
+	OptixBuildInput buildInput = {};
+	buildInput.type = OPTIX_BUILD_INPUT_TYPE_INSTANCES;
+	buildInput.instanceArray.instances = instancesBuffer.GetDevicePointer();
+	buildInput.instanceArray.numInstances = static_cast<uint32_t>(instances.size());
+
+	BuildAccel({ buildInput }, instancesAccelBuffer, iasHandle);
+}
 
 
 
@@ -389,16 +311,29 @@ void PathTracer::CreatePrograms() {
 	{
 		// Hitgroup
 
-		hitPrograms.resize(1);
-		OptixProgramGroupOptions programOptions = {};
-		OptixProgramGroupDesc programDesc = {};
-		programDesc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
-		programDesc.hitgroup.moduleCH = optixModule;
-		programDesc.hitgroup.moduleAH = optixModule;
-		programDesc.hitgroup.entryFunctionNameCH = "__closesthit__radiance";
-		programDesc.hitgroup.entryFunctionNameAH = "__anyhit__radiance";
+		hitPrograms.resize(OBJECT_TYPE_COUNT);
 
-		CheckOptiXErrorsLog(optixProgramGroupCreate(optixDeviceContext, &programDesc, 1, &programOptions, LOG, &LOG_SIZE, &hitPrograms[0]));
+		{
+			// Mesh
+			OptixProgramGroupOptions programOptions = {};
+			OptixProgramGroupDesc programDesc = {};
+			programDesc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
+			programDesc.hitgroup.moduleCH = optixModule;
+			programDesc.hitgroup.entryFunctionNameCH = "__closesthit__mesh";
+			CheckOptiXErrorsLog(optixProgramGroupCreate(optixDeviceContext, &programDesc, 1, &programOptions, LOG, &LOG_SIZE, &hitPrograms[MESH_OBJECT_TYPE]));
+		}
+
+		{
+			// Sphere
+			OptixProgramGroupOptions programOptions = {};
+			OptixProgramGroupDesc programDesc = {};
+			programDesc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
+			programDesc.hitgroup.moduleCH = optixModule;
+			programDesc.hitgroup.entryFunctionNameCH = "__closesthit__sphere";
+			programDesc.hitgroup.moduleIS = optixSphereISModule;
+			CheckOptiXErrorsLog(optixProgramGroupCreate(optixDeviceContext, &programDesc, 1, &programOptions, LOG, &LOG_SIZE, &hitPrograms[SPHERE_OBJECT_TYPE]));
+		}
+
 	}
 	
 }

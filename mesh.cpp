@@ -1,6 +1,7 @@
 #include "mesh.h"
 #include "sutil/vec_math.h"
 #include "sutil/Matrix.h"
+#include "renderer.h"
 
 void Mesh::AddCube(const 
 	float3 & center, const float3& halfSize) {
@@ -53,3 +54,67 @@ void Mesh::Rotate(float angle, const float3& axis) {
 	}
 }
 
+void Mesh::GetBuildInput(OptixBuildInput& input) {
+	deviceVertex.Upload(vertex);
+	deviceIndex.Upload(index);
+
+	input = {};
+	input.type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
+
+	OptixBuildInputTriangleArray& tArray = input.triangleArray;
+
+
+	tArray.vertexFormat = OPTIX_VERTEX_FORMAT_FLOAT3;
+	tArray.vertexStrideInBytes = sizeof(float3);
+	tArray.numVertices = (int)vertex.size();
+	tArray.vertexBuffers = deviceVertex.GetDevicePointerRef();
+
+	tArray.indexFormat = OPTIX_INDICES_FORMAT_UNSIGNED_INT3;
+	tArray.indexStrideInBytes = sizeof(int3);
+	tArray.numIndexTriplets = (int)index.size();
+	tArray.indexBuffer = deviceIndex.GetDevicePointer();
+
+	tArray.flags = &geometryFlags;
+	tArray.numSbtRecords = 1;
+	tArray.sbtIndexOffsetBuffer = NULL;
+
+}
+
+void Mesh::GetShaderBindingRecord(HitgroupRecord& record, const std::vector<OptixProgramGroup>& hitPrograms) {
+	DeviceMeshData& data = record.data.data.mesh;
+	// Object Type 0 For Mesh
+	CheckOptiXErrors(optixSbtRecordPackHeader(hitPrograms[MESH_OBJECT_TYPE], &record));
+
+	data.vertex = (float3*)deviceVertex.GetDevicePointer();
+	data.index = (int3*)deviceIndex.GetDevicePointer();
+	record.data.material = material;
+}
+
+void Sphere::GetBuildInput(OptixBuildInput& input) {
+	devicePosition.Upload(&position, 1);
+	deviceRadius.Upload(&radius, 1);
+
+	input = {};
+	input.type = OPTIX_BUILD_INPUT_TYPE_SPHERES;
+
+	OptixBuildInputSphereArray& sArray = input.sphereArray;
+	
+	sArray.radiusBuffers = deviceRadius.GetDevicePointerRef();
+
+	sArray.vertexBuffers = devicePosition.GetDevicePointerRef();
+	sArray.numVertices = 1;
+
+	sArray.flags = &geometryFlags;
+	sArray.numSbtRecords = 1;
+	sArray.sbtIndexOffsetBuffer = NULL;
+}
+
+void Sphere::GetShaderBindingRecord(HitgroupRecord& record, const std::vector<OptixProgramGroup>& hitPrograms) {
+	DeviceSphereData& data = record.data.data.sphere;
+	// Object Type 1 For Sphere
+	CheckOptiXErrors(optixSbtRecordPackHeader(hitPrograms[SPHERE_OBJECT_TYPE], &record));
+
+	data.position = position;
+	data.radius = radius;
+	record.data.material = material;
+}
