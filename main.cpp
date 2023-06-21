@@ -20,7 +20,7 @@ extern "C" int main(int ac, char** av) {
 
         Shader& naiveMirrorShader = renderer.CreateShader("__direct_callable__naive_mirror");
 
-        NaviveDiffuseData white, whiteLight, red, green;
+        NaiveDiffuseData white, whiteLight, red, green;
     
         white.albedo = make_float3(0.8);
         whiteLight.emission = make_float3(6, 6, 2);
@@ -72,12 +72,20 @@ extern "C" int main(int ac, char** av) {
         test.position = make_float3(-1, 0, 0);
         test.radius = 1.f;
         // test.material.emission = make_float3(1.f, 1.f, 1.f);
+        test.material = whiteMat;
 
+        Curve curve;
+
+        curve.position = make_float3(0);
+        curve.points = { make_float3(1) };
+        curve.material = mirrorMat;
        
 
+        renderer.AddCurve(std::move(curve));
+
         renderer.AddMesh(std::move(plane));
-        renderer.AddMesh(std::move(cube));
-        renderer.AddMesh(std::move(cube2));
+        // renderer.AddMesh(std::move(cube));
+        // renderer.AddMesh(std::move(cube2));
         renderer.AddMesh(std::move(leftPlane));
         renderer.AddMesh(std::move(rightPlane));
         renderer.AddMesh(std::move(light));

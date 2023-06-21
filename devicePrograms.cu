@@ -116,6 +116,8 @@ extern "C" __global__ void __raygen__renderFrame() {
 
         float3 attenuation = make_float3(1.f);
 
+       
+
         for (int depth = 0; depth < renderParams.maxDepth; depth++) {
             traceResult.missed = true;
 
@@ -123,11 +125,13 @@ extern "C" __global__ void __raygen__renderFrame() {
                 break;
             }
 
+
             RayTrace(rayOrigin, rayDir, RADIANCE_RAY_TYPE, &traceResult);
 
             if (traceResult.missed) {
                 break;
             }
+            
 
             optixDirectCall<void, unsigned int&, float3&, TraceResult&, float3&, float3&, float3&>(traceResult.material.programIndex, seed, result,traceResult, attenuation, rayOrigin, rayDir);
         }
@@ -194,9 +198,38 @@ extern "C" __global__ void __closesthit__sphere() {
     result.material = material;    
 }
 
+extern "C" __global__ void __closesthit__curve() {
+    TraceResult& result = *GetPerRayData<TraceResult>();
+
+    const ShaderBindingData& sbtData = *(const ShaderBindingData*)optixGetSbtDataPointer();
+    const Material& material = sbtData.material;
+    const DeviceCurveData& data = sbtData.data.curve;
+
+    const float3 position = optixGetWorldRayOrigin() + optixGetRayTmax() * optixGetWorldRayDirection();
+    const float3 normal = make_float3(0, 1, 0);
+
+    
+
+    result.missed = false;
+    result.normal = normal;
+    result.position = position;
+    result.material = material;
+}
+
+extern "C" __global__ void __intersection__curve() {
+    const ShaderBindingData& sbtData = *(const ShaderBindingData*)optixGetSbtDataPointer();
+    const DeviceCurveData& data = sbtData.data.curve;
+
+    
+
+
+    optixReportIntersection(0.01, 0);
+}
+
+
 
 extern "C" __device__ void __direct_callable__naive_diffuse(unsigned int& seed, float3& result, TraceResult& traceResult, float3& attenuation, float3& rayOrigin, float3& rayDir) {
-    NaviveDiffuseData& data = *(NaviveDiffuseData*)traceResult.material.data;
+    NaiveDiffuseData& data = *(NaiveDiffuseData*)traceResult.material.data;
 
     result += data.emission * attenuation;
 

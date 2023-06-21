@@ -72,8 +72,6 @@ void PathTracer::Render() {
 void PathTracer::Resize(const int2& newSize) {
 	if (newSize.x == 0 || newSize.y == 0) return;
 
-	// colorBuffer.Resize(newSize.x * newSize.y * sizeof(Color));
-
 	outputBuffer->resize(newSize.x, newSize.y);
 
 	renderParams.screenSize = newSize;
@@ -89,6 +87,9 @@ void PathTracer::AddSphere(Sphere&& sphere) {
 	spheres.emplace_back(std::move(sphere));
 }
 
+void PathTracer::AddCurve(Curve&& curve) {
+	curves.emplace_back(std::move(curve));
+}
 Shader PathTracer::CreateShader(std::string name) {
 	shaders.push_back({});
 	Shader& shader = shaders.back();
@@ -170,7 +171,8 @@ void PathTracer::CreateOptixModule() {
 	
 	// Object Type
 	optixPipelineCompileOptions.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_TRIANGLE 
-														| OPTIX_PRIMITIVE_TYPE_FLAGS_SPHERE;
+														| OPTIX_PRIMITIVE_TYPE_FLAGS_SPHERE
+														| OPTIX_PRIMITIVE_TYPE_FLAGS_CUSTOM;
 	// Turn Off Motion Blur
 	optixPipelineCompileOptions.usesMotionBlur = false;
 
@@ -240,17 +242,23 @@ void PathTracer::BuildShaderBindingTable() {
 
 
 	// Hitgroup
-	vector<HitgroupRecord> hitgroupRecords(meshes.size() + spheres.size());
+	vector<HitgroupRecord> hitgroupRecords(meshes.size() + spheres.size() + curves.size());
 	int sbtOffset = 0;
 	for (int i = 0; i < meshes.size(); i++) {
 		HitgroupRecord& record = hitgroupRecords[i + sbtOffset];
 		meshes[i].GetShaderBindingRecord(record, hitPrograms);
 	}
+	sbtOffset += geometryAccelDatas[MESH_OBJECT_TYPE].sbtRecordsCount;
 
-	sbtOffset += meshes.size();
 	for (int i = 0; i < spheres.size(); i++) {
 		HitgroupRecord& record = hitgroupRecords[i + sbtOffset];
 		spheres[i].GetShaderBindingRecord(record, hitPrograms);
+	}
+	sbtOffset += geometryAccelDatas[SPHERE_OBJECT_TYPE].sbtRecordsCount;
+
+	for (int i = 0; i < curves.size(); i++) {
+		HitgroupRecord& record = hitgroupRecords[i + sbtOffset];
+		curves[i].GetShaderBindingRecord(record, hitPrograms);
 	}
 
 	hitRecordsBuffer.Upload(hitgroupRecords);
@@ -265,6 +273,8 @@ void PathTracer::BuildAllAccel() {
 	BuildGeometryAccel(meshes, geometryAccelDatas[MESH_OBJECT_TYPE]);
 	// Build Sphere
 	BuildGeometryAccel(spheres, geometryAccelDatas[SPHERE_OBJECT_TYPE]);
+	// Build Curve
+	BuildGeometryAccel(curves, geometryAccelDatas[CURVE_OBJECT_TYPE]);
 
 	// Build IAS
 	BuildInstanceAccel();
@@ -294,6 +304,19 @@ void PathTracer::BuildInstanceAccel() {
 		0, 0, 1, 0}, instanceId, sbtOffset, 255,
 		flags, geometryAccelDatas[SPHERE_OBJECT_TYPE].handle, {0, 0}
 	});
+	sbtOffset += geometryAccelDatas[SPHERE_OBJECT_TYPE].sbtRecordsCount;
+	instanceId++;
+
+	// Curve
+	instances.push_back(OptixInstance{
+		{1, 0, 0, 0,
+		0, 1, 0, 0,
+		0, 0, 1, 0}, instanceId, sbtOffset, 255,
+		flags, geometryAccelDatas[CURVE_OBJECT_TYPE].handle, {0, 0}
+		});
+	sbtOffset += geometryAccelDatas[CURVE_OBJECT_TYPE].sbtRecordsCount;
+	instanceId++;
+
 	
 	instancesBuffer.Upload(instances);
 
@@ -303,6 +326,83 @@ void PathTracer::BuildInstanceAccel() {
 	buildInput.instanceArray.numInstances = static_cast<uint32_t>(instances.size());
 
 	BuildAccel({ buildInput }, instancesAccelBuffer, iasHandle);
+}
+
+void PathTracer::BuildAccel(const vector<OptixBuildInput> inputs, CudaBuffer& structBuffer, OptixTraversableHandle& handle, unsigned int buildFlags) {
+	OptixAccelBuildOptions accelOptions = {};
+	accelOptions.buildFlags = OPTIX_BUILD_FLAG_NONE | OPTIX_BUILD_FLAG_ALLOW_COMPACTION | buildFlags;
+	accelOptions.motionOptions.numKeys = 1;
+	accelOptions.operation = OPTIX_BUILD_OPERATION_BUILD;
+
+	OptixAccelBufferSizes blasBufferSizes;
+	CheckOptiXErrors(
+		optixAccelComputeMemoryUsage(
+			optixDeviceContext,
+			&accelOptions,
+			inputs.data(),
+			(int)inputs.size(),
+			&blasBufferSizes
+		)
+	);
+
+	CudaBuffer compactedSizeBuffer;
+	compactedSizeBuffer.Alloc(sizeof(uint64_t));
+
+	OptixAccelEmitDesc emitDesc;
+	emitDesc.type = OPTIX_PROPERTY_TYPE_COMPACTED_SIZE;
+	emitDesc.result = compactedSizeBuffer.GetDevicePointer();
+
+
+	CudaBuffer tempBuffer;
+	tempBuffer.Alloc(blasBufferSizes.tempSizeInBytes);
+
+	CudaBuffer outputBuffer;
+	outputBuffer.Alloc(blasBufferSizes.outputSizeInBytes);
+
+	CheckOptiXErrors(
+		optixAccelBuild(
+			optixDeviceContext,
+			cudaStream,
+			&accelOptions,
+			inputs.data(),
+			(int)inputs.size(),
+			tempBuffer.GetDevicePointer(),
+			tempBuffer.GetSize(),
+			outputBuffer.GetDevicePointer(),
+			outputBuffer.GetSize(),
+			&handle,
+			&emitDesc,
+			1
+		)
+	);
+
+	CheckCudaErrors(
+		cudaDeviceSynchronize()
+	);
+
+	uint64_t compactedSize;
+	compactedSizeBuffer.Download(&compactedSize, 1);
+
+	structBuffer.Alloc(compactedSize);
+
+	CheckOptiXErrors(
+		optixAccelCompact(
+			optixDeviceContext,
+			cudaStream,
+			handle,
+			structBuffer.GetDevicePointer(),
+			structBuffer.GetSize(),
+			&handle
+		)
+	);
+
+	CheckCudaErrors(
+		cudaDeviceSynchronize()
+	);
+
+	outputBuffer.Free();
+	tempBuffer.Free();
+	compactedSizeBuffer.Free();
 }
 
 
@@ -355,6 +455,18 @@ void PathTracer::CreatePrograms() {
 			programDesc.hitgroup.entryFunctionNameCH = "__closesthit__sphere";
 			programDesc.hitgroup.moduleIS = optixSphereISModule;
 			CheckOptiXErrorsLog(optixProgramGroupCreate(optixDeviceContext, &programDesc, 1, &programOptions, LOG, &LOG_SIZE, &hitPrograms[SPHERE_OBJECT_TYPE]));
+		}
+
+		{
+			// Curve
+			OptixProgramGroupOptions programOptions = {};
+			OptixProgramGroupDesc programDesc = {};
+			programDesc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
+			programDesc.hitgroup.moduleCH = optixModule;
+			programDesc.hitgroup.entryFunctionNameCH = "__closesthit__curve";
+			programDesc.hitgroup.moduleIS = optixModule;
+			programDesc.hitgroup.entryFunctionNameIS = "__intersection__curve";
+			CheckOptiXErrorsLog(optixProgramGroupCreate(optixDeviceContext, &programDesc, 1, &programOptions, LOG, &LOG_SIZE, &hitPrograms[CURVE_OBJECT_TYPE]));
 		}
 
 	}

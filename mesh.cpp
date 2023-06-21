@@ -124,3 +124,41 @@ void Sphere::GetShaderBindingRecord(HitgroupRecord& record, const std::vector<Op
 	data.radius = radius;
 	record.data.material = material->CreateMaterial();
 }
+
+void Curve::GetBuildInput(OptixBuildInput& input) {
+	aabb = GetAabb();
+
+	devicePoints.Upload(points);
+	deviceAabb.Upload(&aabb, 1);
+
+	input = {};
+	input.type = OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
+
+	OptixBuildInputCustomPrimitiveArray& cArray = input.customPrimitiveArray;
+
+	cArray.numPrimitives = 1;
+	cArray.aabbBuffers = deviceAabb.GetDevicePointerRef();
+	cArray.flags = &geometryFlags;
+
+	cArray.numSbtRecords = 1;
+	cArray.sbtIndexOffsetBuffer = NULL;
+}
+
+void Curve::GetShaderBindingRecord(HitgroupRecord& record, const std::vector<OptixProgramGroup>& hitPrograms) {
+	DeviceCurveData& data = record.data.data.curve;
+	// Object Type 2 For Curve
+	CheckOptiXErrors(optixSbtRecordPackHeader(hitPrograms[CURVE_OBJECT_TYPE], &record));
+
+	data.axis = axis;
+	data.points = (float3*)devicePoints.GetDevicePointer();
+	data.position = position;
+	record.data.material = material->CreateMaterial();
+}
+
+OptixAabb Curve::GetAabb() {
+	const float radius = 1;
+	return OptixAabb{
+		/* minX = */ position.x - radius, /* minY = */ position.y - radius, /* minZ = */ position.z - radius,
+		/* maxX = */ position.x + radius, /* maxY = */ position.y + radius, /* maxZ = */ position.z + radius
+	};
+}

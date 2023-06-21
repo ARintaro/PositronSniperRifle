@@ -17,7 +17,6 @@ public:
 	virtual void GetShaderBindingRecord(HitgroupRecord& record, const std::vector<OptixProgramGroup>& hitPrograms) = 0;
 
 	virtual void GetBuildInput(OptixBuildInput& input) = 0;
-
 };
 
 class Mesh : public SceneObject {
@@ -58,7 +57,23 @@ protected:
 	CudaBuffer devicePosition;
 	CudaBuffer deviceRadius;
 
+};
 
+class Curve : public SceneObject {
+public:
+	std::vector<float3> points;
+	float3 axis;
+	float3 position;
+	OptixAabb aabb;
 
+	virtual void GetBuildInput(OptixBuildInput& input) override;
+
+	virtual void GetShaderBindingRecord(HitgroupRecord& record, const std::vector<OptixProgramGroup>& hitPrograms) override;
+
+	OptixAabb GetAabb();
+
+protected:
+	CudaBuffer devicePoints;
+	CudaBuffer deviceAabb;
 };
 

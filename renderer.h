@@ -40,7 +40,7 @@ struct PathTracerCameraSetting {
 
 
 struct GeometryAccelData {
-	OptixTraversableHandle handle;
+	OptixTraversableHandle handle = 0;
 	CudaBuffer structBuffer;
 	uint32_t sbtRecordsCount;
 };
@@ -59,6 +59,8 @@ public:
 	void AddMesh(Mesh&& mesh);
 
 	void AddSphere(Sphere&& sphere);
+
+	void AddCurve(Curve&& curve);
 
 	Shader CreateShader(std::string name);
 
@@ -90,6 +92,7 @@ protected:
 	// Scene Inputs
 	vector<Mesh> meshes;
 	vector<Sphere> spheres;
+	vector<Curve> curves;
 
 	PathTracerCameraSetting curCameraSetting;
 
@@ -124,8 +127,6 @@ protected:
 	OptixModule optixSphereISModule;
 	OptixModuleCompileOptions optixModuleCompileOptions;
 
-		
-	
 	vector<GeometryAccelData> geometryAccelDatas;
 	OptixShaderBindingTable shaderBindingTable = {};
 
@@ -134,85 +135,13 @@ protected:
 	OptixTraversableHandle iasHandle;
 
 protected:
-	void BuildAccel(const vector<OptixBuildInput> inputs, CudaBuffer& structBuffer, OptixTraversableHandle& handle, unsigned int buildFlags = 0) {
-		OptixAccelBuildOptions accelOptions = {};
-		accelOptions.buildFlags = OPTIX_BUILD_FLAG_NONE | OPTIX_BUILD_FLAG_ALLOW_COMPACTION | buildFlags;
-		accelOptions.motionOptions.numKeys = 1;
-		accelOptions.operation = OPTIX_BUILD_OPERATION_BUILD;
-
-		OptixAccelBufferSizes blasBufferSizes;
-		CheckOptiXErrors(
-			optixAccelComputeMemoryUsage(
-				optixDeviceContext,
-				&accelOptions,
-				inputs.data(),
-				(int)inputs.size(),
-				&blasBufferSizes
-			)
-		);
-
-		CudaBuffer compactedSizeBuffer;
-		compactedSizeBuffer.Alloc(sizeof(uint64_t));
-
-		OptixAccelEmitDesc emitDesc;
-		emitDesc.type = OPTIX_PROPERTY_TYPE_COMPACTED_SIZE;
-		emitDesc.result = compactedSizeBuffer.GetDevicePointer();
-
-
-		CudaBuffer tempBuffer;
-		tempBuffer.Alloc(blasBufferSizes.tempSizeInBytes);
-
-		CudaBuffer outputBuffer;
-		outputBuffer.Alloc(blasBufferSizes.outputSizeInBytes);
-
-		CheckOptiXErrors(
-			optixAccelBuild(
-				optixDeviceContext,
-				cudaStream,
-				&accelOptions,
-				inputs.data(),
-				(int)inputs.size(),
-				tempBuffer.GetDevicePointer(),
-				tempBuffer.GetSize(),
-				outputBuffer.GetDevicePointer(),
-				outputBuffer.GetSize(),
-				&handle,
-				&emitDesc,
-				1
-			)
-		);
-
-		CheckCudaErrors(
-			cudaDeviceSynchronize()
-		);
-
-		uint64_t compactedSize;
-		compactedSizeBuffer.Download(&compactedSize, 1);
-
-		structBuffer.Alloc(compactedSize);
-
-		CheckOptiXErrors(
-			optixAccelCompact(
-				optixDeviceContext,
-				cudaStream,
-				handle,
-				structBuffer.GetDevicePointer(),
-				structBuffer.GetSize(),
-				&handle
-			)
-		);
-
-		CheckCudaErrors(
-			cudaDeviceSynchronize()
-		);
-
-		outputBuffer.Free();
-		tempBuffer.Free();
-		compactedSizeBuffer.Free();
-	}
+	void BuildAccel(const vector<OptixBuildInput> inputs, CudaBuffer& structBuffer, OptixTraversableHandle& handle, unsigned int buildFlags = 0);
 
 	template<typename T>
 	void BuildGeometryAccel(vector<T>& objects, GeometryAccelData& data, unsigned int buildFlags = 0) {
+		// One Record Per Object
+		data.sbtRecordsCount = objects.size();
+
 		if (objects.empty()) {
 			return;
 		}
@@ -222,9 +151,6 @@ protected:
 		for (int objectId = 0; objectId < objects.size(); objectId++) {
 			objects[objectId].GetBuildInput(inputs[objectId]);
 		}
-
-		// One Record Per Object
-		data.sbtRecordsCount = objects.size();
 
 		BuildAccel(inputs, data.structBuffer, data.handle);
 	}

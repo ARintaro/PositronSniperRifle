@@ -6,11 +6,11 @@ enum { RADIANCE_RAY_TYPE = 0, /* OCCLUSION_RAY_TYPE = 1,*/ RAY_TYPE_COUNT };
 
 enum { LAMBERT_MATERIAL_TYPE = 0, MIRROR_MATERIAL_TYPE = 1};
 
-enum { MESH_OBJECT_TYPE = 0, SPHERE_OBJECT_TYPE = 1, OBJECT_TYPE_COUNT };
+enum { MESH_OBJECT_TYPE = 0, SPHERE_OBJECT_TYPE = 1, CURVE_OBJECT_TYPE = 2 , OBJECT_TYPE_COUNT };
 
 using Color = uchar4;
 
-struct NaviveDiffuseData {
+struct NaiveDiffuseData {
 	float3 emission = make_float3(0, 0, 0);
 	float3 albedo = make_float3(1, 1, 1);
 };
@@ -34,10 +34,17 @@ struct DeviceSphereData {
 	float radius;
 };
 
+struct DeviceCurveData {
+	float3* points;
+	float3 position;
+	float3 axis;
+};
+
 struct ShaderBindingData {
 	union Data {
 		DeviceMeshData mesh;
 		DeviceSphereData sphere;
+		DeviceCurveData curve;
 	}data;
 
 	Material material;
