@@ -89,7 +89,7 @@ void PathTracer::AddSphere(Sphere&& sphere) {
 	spheres.emplace_back(std::move(sphere));
 }
 
-Shader& PathTracer::CreateShader(std::string name) {
+Shader PathTracer::CreateShader(std::string name) {
 	shaders.push_back({});
 	Shader& shader = shaders.back();
 	shader.name = name;
@@ -160,7 +160,7 @@ void PathTracer::CreateOptixModule() {
 
 	optixModuleCompileOptions.maxRegisterCount = OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;
 
-#if !defined( NDEBUG )
+#ifdef _DEBUG
 	optixModuleCompileOptions.optLevel = OPTIX_COMPILE_OPTIMIZATION_LEVEL_0;
 	optixModuleCompileOptions.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_FULL;
 #endif
@@ -178,8 +178,9 @@ void PathTracer::CreateOptixModule() {
 	optixPipelineCompileOptions.numPayloadValues = 2;
 	optixPipelineCompileOptions.numAttributeValues = 2;
 	
-#ifdef DEBUG // Enables debug exceptions during optix launches. This may incur significant performance cost and should only be done during development.
-	optixPipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_DEBUG | OPTIX_EXCEPTION_FLAG_TRACE_DEPTH | OPTIX_EXCEPTION_FLAG_STACK_OVERFLOW;
+	// Enables debug exceptions during optix launches. This may incur significant performance cost and should only be done during development.
+#ifdef _DEBUG 
+	optixPipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_DEBUG | OPTIX_EXCEPTION_FLAG_TRACE_DEPTH | OPTIX_EXCEPTION_FLAG_STACK_OVERFLOW | OPTIX_EXCEPTION_FLAG_USER;
 #else
 	optixPipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
 #endif
@@ -383,6 +384,7 @@ void PathTracer::CreateOptixPipeline() {
 	}
 
 	optixPipelineLinkOptions.maxTraceDepth = 2;
+
 
 	CheckOptiXErrorsLog(
 		optixPipelineCreate(

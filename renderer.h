@@ -60,7 +60,7 @@ public:
 
 	void AddSphere(Sphere&& sphere);
 
-	Shader& CreateShader(std::string name);
+	Shader CreateShader(std::string name);
 
 	void SetCamera(const PathTracerCameraSetting& cameraSetting);
 
