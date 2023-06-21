@@ -89,6 +89,14 @@ void PathTracer::AddSphere(Sphere&& sphere) {
 	spheres.emplace_back(std::move(sphere));
 }
 
+Shader& PathTracer::CreateShader(std::string name) {
+	shaders.push_back({});
+	Shader& shader = shaders.back();
+	shader.name = name;
+	shader.programIndex = shaders.size() - 1;
+	return shader;
+}
+
 void PathTracer::SetCamera(const PathTracerCameraSetting& cameraSetting) {
 	renderParams.frame.subframeCount = 0;
 
@@ -199,7 +207,7 @@ void PathTracer::CreateOptixModule() {
 }
 
 void PathTracer::BuildShaderBindingTable() {
-
+	// Raygen
 	RaygenRecord raygenRecord;
 	CheckOptiXErrors(optixSbtRecordPackHeader(raygenPrograms, &raygenRecord));
 	raygenRecord.data = nullptr;
@@ -207,7 +215,7 @@ void PathTracer::BuildShaderBindingTable() {
 	raygenRecordsBuffer.Upload(&raygenRecord, 1);
 	shaderBindingTable.raygenRecord = raygenRecordsBuffer.GetDevicePointer();
 
-
+	// Miss
 	MissRecord missRecord;
 	CheckOptiXErrors(optixSbtRecordPackHeader(missPrograms, &missRecord));
 	missRecord.data = nullptr;
@@ -216,8 +224,22 @@ void PathTracer::BuildShaderBindingTable() {
 	shaderBindingTable.missRecordStrideInBytes = sizeof(MissRecord);
 	shaderBindingTable.missRecordCount = 1;
 
-	vector<HitgroupRecord> hitgroupRecords(meshes.size() + spheres.size());
+	
+	// Shader
+	vector<ShaderRecord> shaderRecords(shaders.size());
+	for (auto& shader : shaders) {
+		CheckOptiXErrors(optixSbtRecordPackHeader(shader.program, &shaderRecords[shader.programIndex]));
+		shaderRecords[shader.programIndex].data = nullptr;
+	}
+	shaderRecordsBuffer.Upload(shaderRecords);
 
+	shaderBindingTable.callablesRecordBase = shaderRecordsBuffer.GetDevicePointer();
+	shaderBindingTable.callablesRecordCount = shaderRecords.size();
+	shaderBindingTable.callablesRecordStrideInBytes = sizeof(ShaderRecord);
+
+
+	// Hitgroup
+	vector<HitgroupRecord> hitgroupRecords(meshes.size() + spheres.size());
 	int sbtOffset = 0;
 	for (int i = 0; i < meshes.size(); i++) {
 		HitgroupRecord& record = hitgroupRecords[i + sbtOffset];
@@ -335,6 +357,16 @@ void PathTracer::CreatePrograms() {
 		}
 
 	}
+
+	// Callables
+	for (auto& shader : shaders) {
+		OptixProgramGroupOptions programOptions = {};
+		OptixProgramGroupDesc programDesc = {};
+		programDesc.kind = OPTIX_PROGRAM_GROUP_KIND_CALLABLES;
+		programDesc.callables.moduleDC = optixModule;
+		programDesc.callables.entryFunctionNameDC = shader.name.data();
+		CheckOptiXErrorsLog(optixProgramGroupCreate(optixDeviceContext, &programDesc, 1, &programOptions, LOG, &LOG_SIZE, &shader.program));
+	}
 	
 }
 
@@ -343,8 +375,11 @@ void PathTracer::CreateOptixPipeline() {
 	programs.push_back(raygenPrograms);
 	programs.push_back(missPrograms);
 
-	for (auto prog : hitPrograms) {
+	for (auto& prog : hitPrograms) {
 		programs.push_back(prog);
+	}
+	for (auto& shader : shaders) {
+		programs.push_back(shader.program);
 	}
 
 	optixPipelineLinkOptions.maxTraceDepth = 2;

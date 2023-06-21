@@ -10,10 +10,17 @@ enum { MESH_OBJECT_TYPE = 0, SPHERE_OBJECT_TYPE = 1, OBJECT_TYPE_COUNT };
 
 using Color = uchar4;
 
-struct Material {
-	float3 albedo = make_float3(0, 0, 0);
+struct NaviveDiffuseData {
 	float3 emission = make_float3(0, 0, 0);
+	float3 albedo = make_float3(1, 1, 1);
+};
 
+struct NaiveMirrorData {
+
+};
+
+struct Material {
+	void* data;
 	int programIndex;
 };
 
@@ -39,11 +46,11 @@ struct ShaderBindingData {
 struct RenderParams {
 	int2 screenSize {512, 512};
 
-	int samplesPerLaunch = 16;
+	int samplesPerLaunch = 128;
 
 	float russianRouletteProbability = 0.9f;
 
-	int maxDepth = 512;
+	int maxDepth = 32;
 
 	struct Frame {
 		int frameId = 0;

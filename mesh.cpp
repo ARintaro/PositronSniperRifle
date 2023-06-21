@@ -54,6 +54,12 @@ void Mesh::Rotate(float angle, const float3& axis) {
 	}
 }
 
+void Mesh::Move(const float3& delta) {
+	for (auto& v : vertex) {
+		v += delta;
+	}
+}
+
 void Mesh::GetBuildInput(OptixBuildInput& input) {
 	deviceVertex.Upload(vertex);
 	deviceIndex.Upload(index);
@@ -87,7 +93,7 @@ void Mesh::GetShaderBindingRecord(HitgroupRecord& record, const std::vector<Opti
 
 	data.vertex = (float3*)deviceVertex.GetDevicePointer();
 	data.index = (int3*)deviceIndex.GetDevicePointer();
-	record.data.material = material;
+	record.data.material = material->CreateMaterial();
 }
 
 void Sphere::GetBuildInput(OptixBuildInput& input) {
@@ -116,5 +122,5 @@ void Sphere::GetShaderBindingRecord(HitgroupRecord& record, const std::vector<Op
 
 	data.position = position;
 	data.radius = radius;
-	record.data.material = material;
+	record.data.material = material->CreateMaterial();
 }

@@ -5,8 +5,31 @@
 #include "renderParams.h"
 #include "mesh.h"
 #include <sutil/CUDAOutputBuffer.h>
+#include "shader.hpp"
 
 using std::vector;
+
+struct __align__(OPTIX_SBT_RECORD_ALIGNMENT) RaygenRecord {
+	__align__(OPTIX_SBT_RECORD_ALIGNMENT) char header[OPTIX_SBT_RECORD_HEADER_SIZE];
+	void* data;
+};
+
+struct __align__(OPTIX_SBT_RECORD_ALIGNMENT) MissRecord {
+	__align__(OPTIX_SBT_RECORD_ALIGNMENT) char header[OPTIX_SBT_RECORD_HEADER_SIZE];
+
+	void* data;
+};
+struct __align__(OPTIX_SBT_RECORD_ALIGNMENT) HitgroupRecord {
+	__align__(OPTIX_SBT_RECORD_ALIGNMENT) char header[OPTIX_SBT_RECORD_HEADER_SIZE];
+
+	ShaderBindingData data;
+};
+struct __align__(OPTIX_SBT_RECORD_ALIGNMENT) ShaderRecord {
+	__align__(OPTIX_SBT_RECORD_ALIGNMENT) char header[OPTIX_SBT_RECORD_HEADER_SIZE];
+
+	void* data;
+};
+
 
 struct PathTracerCameraSetting {
 	float3 position;
@@ -15,37 +38,6 @@ struct PathTracerCameraSetting {
 	float fov;
 };
 
-template<typename T>
-struct __align__(OPTIX_SBT_RECORD_ALIGNMENT) SbtRecord
-{
-	__align__(OPTIX_SBT_RECORD_ALIGNMENT) char header[OPTIX_SBT_RECORD_HEADER_SIZE];
-
-	T data;
-};
-
-//using RaygenRecord = SbtRecord<void*>;
-//using MissRecord = SbtRecord<void*>;
-//using HitgroupRecord = SbtRecord<ShaderBindingData>;
-
-struct __align__(OPTIX_SBT_RECORD_ALIGNMENT) RaygenRecord
-{
-	__align__(OPTIX_SBT_RECORD_ALIGNMENT) char header[OPTIX_SBT_RECORD_HEADER_SIZE];
-
-	void* data;
-};
-
-struct __align__(OPTIX_SBT_RECORD_ALIGNMENT) MissRecord
-{
-	__align__(OPTIX_SBT_RECORD_ALIGNMENT) char header[OPTIX_SBT_RECORD_HEADER_SIZE];
-
-	void* data;
-};
-struct __align__(OPTIX_SBT_RECORD_ALIGNMENT) HitgroupRecord
-{
-	__align__(OPTIX_SBT_RECORD_ALIGNMENT) char header[OPTIX_SBT_RECORD_HEADER_SIZE];
-
-	ShaderBindingData data;
-};
 
 struct GeometryAccelData {
 	OptixTraversableHandle handle;
@@ -67,6 +59,8 @@ public:
 	void AddMesh(Mesh&& mesh);
 
 	void AddSphere(Sphere&& sphere);
+
+	Shader& CreateShader(std::string name);
 
 	void SetCamera(const PathTracerCameraSetting& cameraSetting);
 
@@ -93,25 +87,17 @@ protected:
 	void BuildInstanceAccel();
 
 protected:
+	// Scene Inputs
 	vector<Mesh> meshes;
 	vector<Sphere> spheres;
 
 	PathTracerCameraSetting curCameraSetting;
 
-	CUcontext cudaContext;
-	CUstream cudaStream;
-	cudaDeviceProp deviceProps;
+	// Render Params
+	RenderParams renderParams;
+	CudaBuffer renderParamsBuffer;
 
-	OptixDeviceContext optixDeviceContext;
-
-	OptixPipeline optixPipeline;
-	OptixPipelineCompileOptions optixPipelineCompileOptions;
-	OptixPipelineLinkOptions optixPipelineLinkOptions;
-
-	OptixModule optixModule;
-	OptixModule optixSphereISModule;
-	OptixModuleCompileOptions optixModuleCompileOptions;
-
+	// Programs
 	OptixProgramGroup raygenPrograms;
 	CudaBuffer raygenRecordsBuffer;
 
@@ -121,15 +107,28 @@ protected:
 	vector<OptixProgramGroup> hitPrograms;
 	CudaBuffer hitRecordsBuffer;
 
-	vector<GeometryAccelData> geometryAccelDatas;
+	vector<Shader> shaders;
+	CudaBuffer shaderRecordsBuffer;
 
+	// Optix 
+	CUcontext cudaContext;
+	CUstream cudaStream;
+	cudaDeviceProp deviceProps;
+
+	OptixDeviceContext optixDeviceContext;
+	OptixPipeline optixPipeline;
+	OptixPipelineCompileOptions optixPipelineCompileOptions;
+	OptixPipelineLinkOptions optixPipelineLinkOptions;
+
+	OptixModule optixModule;
+	OptixModule optixSphereISModule;
+	OptixModuleCompileOptions optixModuleCompileOptions;
+
+		
+	
+	vector<GeometryAccelData> geometryAccelDatas;
 	OptixShaderBindingTable shaderBindingTable = {};
 
-	RenderParams renderParams;
-
-	CudaBuffer renderParamsBuffer;
-	
-	// For IAS
 	CudaBuffer instancesBuffer;
 	CudaBuffer instancesAccelBuffer;
 	OptixTraversableHandle iasHandle;
@@ -214,6 +213,10 @@ protected:
 
 	template<typename T>
 	void BuildGeometryAccel(vector<T>& objects, GeometryAccelData& data, unsigned int buildFlags = 0) {
+		if (objects.empty()) {
+			return;
+		}
+
 		vector<OptixBuildInput> inputs(objects.size());
 
 		for (int objectId = 0; objectId < objects.size(); objectId++) {

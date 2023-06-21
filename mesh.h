@@ -3,13 +3,15 @@
 #include <vector>
 #include "renderParams.h"
 #include <positronSniperRifle\cudaBuffer.h>
+#include "shader.hpp"
+
 
 struct HitgroupRecord;
 
 class SceneObject {
 
 public:
-	Material material;
+	std::shared_ptr<HostMaterial> material;
 	uint32_t geometryFlags = OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT;
 
 	virtual void GetShaderBindingRecord(HitgroupRecord& record, const std::vector<OptixProgramGroup>& hitPrograms) = 0;
@@ -26,6 +28,8 @@ public:
 	void AddTriangle(const float3& a, const float3& b, const float3& c);
 
 	void Rotate(float angle, const float3& axis);
+
+	void Move(const float3& delta);
 
 	virtual void GetBuildInput(OptixBuildInput& input) override;
 

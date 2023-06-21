@@ -64,6 +64,20 @@ float3 RandomSampleHemisphere(unsigned int& seed, const float3& normal) {
         return -vec_in_sphere;
 }
 
+static __forceinline__ __device__ float FresnelSchlick(float inCosine, float f0) {
+    float oneMinusCos = 1.0f - inCosine;
+    float oneMinusCosSqr = oneMinusCos * oneMinusCos;
+    float fresnel = f0 + (1.0f - f0) * oneMinusCosSqr * oneMinusCosSqr * oneMinusCos;
+    return fresnel;
+}
+
+static __forceinline__ __device__ float3 Refract(const float3& in, const float3& normal, float refractivity) {
+    auto cos_theta = fminf(dot(-in, normal), 1.0f);
+    float3 r_out_perp = refractivity * (in + cos_theta * normal);
+    float3 r_out_parallel = -sqrtf(fabs(1.0f - dot(r_out_perp, r_out_perp))) * normal;
+    return r_out_perp + r_out_parallel;
+}
+
 static __forceinline__ __device__
 void RayTrace(float3 position, float3 rayDir, int rayType, TraceResult* result) {
     uint32_t u0, u1;
@@ -100,7 +114,6 @@ extern "C" __global__ void __raygen__renderFrame() {
         float3 rayOrigin = camera.position;
         float3 rayDir = normalize(camera.direction + (screenPos.y - 0.5f) * camera.vertical + (screenPos.x - 0.5f) * camera.horizontal);
 
-        // brdf * cos / pdf(input)
         float3 attenuation = make_float3(1.f);
 
         for (int depth = 0; depth < renderParams.maxDepth; depth++) {
@@ -116,13 +129,7 @@ extern "C" __global__ void __raygen__renderFrame() {
                 break;
             }
 
-            result += traceResult.material.emission * attenuation;
-
-            attenuation *= traceResult.material.albedo / renderParams.russianRouletteProbability;
-
-            rayOrigin = traceResult.position;
-            rayDir = RandomSampleHemisphere(seed, traceResult.normal);
-
+            optixDirectCall<void, unsigned int&, float3&, TraceResult&, float3&, float3&, float3&>(traceResult.material.programIndex, seed, result,traceResult, attenuation, rayOrigin, rayDir);
         }
 
     }
@@ -185,4 +192,27 @@ extern "C" __global__ void __closesthit__sphere() {
     result.normal = normal;
     result.position = position;
     result.material = material;    
+}
+
+
+extern "C" __device__ void __direct_callable__naive_diffuse(unsigned int& seed, float3& result, TraceResult& traceResult, float3& attenuation, float3& rayOrigin, float3& rayDir) {
+    NaviveDiffuseData& data = *(NaviveDiffuseData*)traceResult.material.data;
+
+    result += data.emission * attenuation;
+
+    rayOrigin = traceResult.position;
+    rayDir = RandomSampleHemisphere(seed, traceResult.normal);
+
+    float cosine = dot(rayDir, traceResult.normal);
+
+    attenuation *= 2 * cosine * data.albedo / renderParams.russianRouletteProbability;
+}
+
+extern "C" __device__ void __direct_callable__naive_mirror(unsigned int& seed, float3 & result, TraceResult & traceResult, float3 & attenuation, float3 & rayOrigin, float3 & rayDir) {
+    NaiveMirrorData& data = *(NaiveMirrorData*)traceResult.material.data;
+
+    rayOrigin = traceResult.position;
+    rayDir = reflect(rayDir, traceResult.normal);
+
+    attenuation *= 1 / renderParams.russianRouletteProbability;
 }

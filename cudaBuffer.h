@@ -8,6 +8,7 @@ class CudaBuffer {
 
 public:
 	constexpr inline CUdeviceptr GetDevicePointer() { return (CUdeviceptr)devicePointer; }
+	constexpr inline void* GetDevicePointerVoid() { return devicePointer; }
 	constexpr inline CUdeviceptr* GetDevicePointerRef() { return (CUdeviceptr*)(&devicePointer); }
 	constexpr inline size_t GetSize() { return size; }
 
