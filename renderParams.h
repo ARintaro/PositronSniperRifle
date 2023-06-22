@@ -13,13 +13,31 @@ enum { MESH_OBJECT_TYPE = 0, SPHERE_OBJECT_TYPE = 1, CURVE_OBJECT_TYPE = 2 , OBJ
 
 using Color = uchar4;
 
+struct DisneyPbrData {
+	float3 baseColor = make_float3(1, 1, 1);
+	float roughness = 1;
+	float metallic = 0; 
+	float specular = 0;
+	float specularTint =0;
+	float sheenTint = 0;
+	float anisotropic = 0;
+	float sheen = 0;
+	float clearcoatGloss = 0;
+	float subsurface = 0;
+	float clearcoat = 0;
+};
+
 struct NaiveDiffuseData {
 	float3 emission = make_float3(0, 0, 0);
 	float3 albedo = make_float3(1, 1, 1);
 };
 
-struct NaiveMirrorData {
+struct NaiveMetalData {
+	float roughness = 0;
+};
 
+struct NaiveDielectricsData {
+	float refractivity;
 };
 
 struct Material {

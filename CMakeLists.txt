@@ -4,6 +4,7 @@ OPTIX_add_sample_executable(positronSniperRifle target_name
   renderer.h
   renderParams.h
   window.h
+  disney.h
   tiny_obj_loader.h
   shader.hpp
   devicePrograms.cu

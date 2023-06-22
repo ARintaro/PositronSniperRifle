@@ -57,8 +57,7 @@ int Mesh::AddVertex(tinyobj::attrib_t& attributes, const tinyobj::index_t& idx, 
 
 std::vector<Mesh> Mesh::LoadObj(const std::string& fileName) {
 	
-	const std::string mtlDir
-		= fileName.substr(0, fileName.rfind('/') + 1);
+	const std::string mtlDir = fileName.substr(0, fileName.rfind('/'));
 
 	tinyobj::attrib_t attributes;
 	std::vector<tinyobj::shape_t> shapes;
@@ -71,9 +70,8 @@ std::vector<Mesh> Mesh::LoadObj(const std::string& fileName) {
 			&materials,
 			&err,
 			&err,
-			fileName.c_str(),
-			mtlDir.c_str(),
-			true);
+			fileName.data(),
+			mtlDir.data());
 	if (!readOK) {
 		throw std::runtime_error("Could not read OBJ model from " + fileName + ":" + mtlDir + " : " + err);
 	}

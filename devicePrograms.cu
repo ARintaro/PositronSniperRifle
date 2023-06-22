@@ -1,13 +1,8 @@
 
 
 #include "renderParams.h"
-
-
 #include "random.h"
-
-#include <crt\host_defines.h>
-#include <optix_device.h>
-#include "helpers.h"
+#include "disney.h"
 
 extern "C" __constant__ RenderParams renderParams;
 
@@ -16,6 +11,8 @@ struct TraceResult {
 
     float3 position;
     float3 normal;
+
+    bool outer;
 
     Material material;
 };
@@ -63,12 +60,6 @@ float3 RandomSampleHemisphere(unsigned int& seed, const float3& normal) {
         return -vec_in_sphere;
 }
 
-static __forceinline__ __device__ float FresnelSchlick(float inCosine, float f0) {
-    float oneMinusCos = 1.0f - inCosine;
-    float oneMinusCosSqr = oneMinusCos * oneMinusCos;
-    float fresnel = f0 + (1.0f - f0) * oneMinusCosSqr * oneMinusCosSqr * oneMinusCos;
-    return fresnel;
-}
 
 static __forceinline__ __device__ float3 Refract(const float3& in, const float3& normal, float refractivity) {
     auto cos_theta = fminf(dot(-in, normal), 1.0f);
@@ -76,6 +67,8 @@ static __forceinline__ __device__ float3 Refract(const float3& in, const float3&
     float3 r_out_parallel = -sqrtf(fabs(1.0f - dot(r_out_perp, r_out_perp))) * normal;
     return r_out_perp + r_out_parallel;
 }
+
+
 
 
 static __forceinline__ __device__ float CalculateX(const float v, const DeviceCurveData& data) {
@@ -119,6 +112,85 @@ static __forceinline__ __device__ float CalculateDy(const float v, const DeviceC
     return result;
 }
 
+
+static __forceinline__ __device__ float3 Newton(float t, const float3& origin, const float3& direction, const DeviceCurveData& data)
+{
+    float3 init_xyz = origin + t * direction - data.position;
+
+    float3 init_uvt = {};
+    init_uvt.x = atan(init_xyz.z / init_xyz.x);
+    if (init_xyz.x > 0 && init_xyz.z < 0)
+    {
+        init_uvt.x += 2 * M_PI;
+    }
+    else if (init_xyz.x < 0)
+    {
+        init_uvt.x += M_PI;
+    }
+    init_uvt.y = (init_xyz.y - data.aabb->minY) / (data.aabb->maxY - data.aabb->minY);
+    if (init_uvt.y < 0)
+    {
+        init_uvt.y = 0.00001f;
+    }
+    else if (init_uvt.y > 1)
+    {
+        init_uvt.y = 0.99999f;
+    }
+    init_uvt.z = t;
+
+    float3 intersect_uvt = init_uvt;
+
+    int max_round = 5;
+    float epsilon = 0.00001;
+
+    for (int i = 0; i < max_round; i++)
+    {
+        float3 Jocab_first_row = { -CalculateX(intersect_uvt.y, data) * sin(intersect_uvt.x), CalculateDx(intersect_uvt.y, data) * cos(intersect_uvt.x), -direction.x };
+        float3 Jocab_second_row = { 0, CalculateDy(intersect_uvt.y, data), -direction.y };
+        float3 Jocab_third_row = { CalculateX(intersect_uvt.y, data) * cos(intersect_uvt.x), CalculateDx(intersect_uvt.y, data) * sin(intersect_uvt.x), -direction.z };
+
+        float3 F_uvt = { CalculateX(intersect_uvt.y, data) * cos(intersect_uvt.x), CalculateY(intersect_uvt.y, data), CalculateX(intersect_uvt.y, data) * sin(intersect_uvt.x) };
+        F_uvt = F_uvt - origin - direction * intersect_uvt.z;
+
+        float3 d_uvt = {};
+        if (abs(Jocab_first_row.x) > epsilon) {
+            float coefficient = (Jocab_third_row.x / Jocab_first_row.x);
+            Jocab_third_row -= coefficient * Jocab_first_row;
+            F_uvt.z -= coefficient * F_uvt.x;
+        } else {
+            return;
+        }
+
+        if (abs(Jocab_second_row.y) > epsilon) {
+            float coefficient = (Jocab_third_row.y / Jocab_second_row.y);
+            Jocab_third_row -= coefficient * Jocab_second_row;
+            F_uvt.z -= coefficient * F_uvt.y;
+        } else {
+            return;
+        }
+
+        if (abs(Jocab_third_row.z) > epsilon)
+        {
+            d_uvt.z = F_uvt.z / Jocab_third_row.z;
+        }
+        else
+        {
+            return;
+        }
+
+        d_uvt.y = (F_uvt.y - Jocab_second_row.z * d_uvt.z) / Jocab_second_row.y;
+        d_uvt.x = (F_uvt.x - Jocab_first_row.z * d_uvt.z - Jocab_first_row.y * d_uvt.y) / Jocab_first_row.x;
+        intersect_uvt -= d_uvt;
+
+        if (intersect_uvt.y < 0) {
+            intersect_uvt.y = 0.00001;
+        } else if (intersect_uvt.y > 1) {
+            intersect_uvt.y = 0.99999;
+        } 
+    }
+    return intersect_uvt;
+}
+
 static __forceinline__ __device__
 void RayTrace(float3 position, float3 rayDir, int rayType, TraceResult* result) {
     uint32_t u0, u1;
@@ -147,7 +219,6 @@ extern "C" __global__ void __raygen__renderFrame() {
     float3 result = make_float3(0);
 
     TraceResult traceResult;
-    
 
     for (int i = 0; i < renderParams.samplesPerLaunch; i++) {
         const float2 screenPos = make_float2(px + rnd(seed), py + rnd(seed)) / make_float2(renderParams.screenSize);
@@ -156,7 +227,7 @@ extern "C" __global__ void __raygen__renderFrame() {
         float3 rayDir = normalize(camera.direction + (screenPos.y - 0.5f) * camera.vertical + (screenPos.x - 0.5f) * camera.horizontal);
 
         float3 attenuation = make_float3(1.f);
-
+        
        
 
         for (int depth = 0; depth < renderParams.maxDepth; depth++) {
@@ -166,7 +237,6 @@ extern "C" __global__ void __raygen__renderFrame() {
                 break;
             }
 
-
             RayTrace(rayOrigin, rayDir, RADIANCE_RAY_TYPE, &traceResult);
 
             if (traceResult.missed) {
@@ -174,7 +244,6 @@ extern "C" __global__ void __raygen__renderFrame() {
             }
 
             optixDirectCall<void, unsigned int&, float3&, TraceResult&, float3&, float3&, float3&>(traceResult.material.programIndex, seed, result,traceResult, attenuation, rayOrigin, rayDir);
-        
         }
 
     }
@@ -223,6 +292,11 @@ extern "C" __global__ void __closesthit__mesh() {
 
     const float3 rayDir = optixGetWorldRayDirection();
 
+    if (dot(rayDir, normal) > 0) {
+        normal = -normal;
+        result.outer = false;
+    }
+
     result.missed = false;
     result.normal = normal;
     result.position = position;
@@ -238,9 +312,14 @@ extern "C" __global__ void __closesthit__sphere() {
     const DeviceSphereData& data = sbtData.data.sphere;
 
     const float3 position = optixGetWorldRayOrigin() + optixGetRayTmax() * optixGetWorldRayDirection();
-    const float3 normal = normalize(position - data.position);
+    float3 normal = normalize(position - data.position);
 
     const float3 rayDir = optixGetWorldRayDirection();
+
+    if (dot(rayDir, normal) > 0) {
+        normal = -normal;
+        result.outer = false;
+    }
 
     result.missed = false;
     result.normal = normal;
@@ -262,7 +341,7 @@ extern "C" __global__ void __closesthit__curve() {
         __int_as_float(optixGetAttribute_2())
     );
 
-    
+
 
     result.missed = false;
     result.normal = normal;
@@ -273,137 +352,42 @@ extern "C" __global__ void __closesthit__curve() {
 extern "C" __global__ void __intersection__curve() {
     const ShaderBindingData& sbtData = *(const ShaderBindingData*)optixGetSbtDataPointer();
     const DeviceCurveData& data = sbtData.data.curve;
-    const float3 origin = optixGetObjectRayOrigin();
-    const float3 direction = optixGetObjectRayDirection();
+    float3 origin = optixGetObjectRayOrigin();
+    float3 direction = optixGetObjectRayDirection();
 
-    float t = 1e10;
     float3 tmax = { data.aabb->maxX, data.aabb->maxY, data.aabb->maxZ };
     float3 tmin = { data.aabb->minX, data.aabb->minY, data.aabb->minZ };
 
     tmax = (tmax - origin) / direction;
     tmin = (tmin - origin) / direction;
 
-    if ((origin + tmax.x * direction).y > data.aabb->minY && (origin + tmax.x * direction).y < data.aabb->maxY && (origin + tmax.x * direction).z > data.aabb->minZ && (origin + tmax.x * direction).z < data.aabb->maxZ && tmax.x < t)
-    {
-        t = tmax.x;
+    float3 intersect_uvt = { 1e10, 1e10, 1e10 };
+    origin -= data.position;
+
+    float3 from_tmax_x = Newton(tmax.x, origin, direction, data);
+    float3 from_tmax_y = Newton(tmax.y, origin, direction, data);
+    float3 from_tmax_z = Newton(tmax.z, origin, direction, data);
+    float3 from_tmin_x = Newton(tmin.x, origin, direction, data);
+    float3 from_tmin_y = Newton(tmin.y, origin, direction, data);
+    float3 from_tmin_z = Newton(tmin.z, origin, direction, data);
+
+    if (from_tmax_x.z > 0 && from_tmax_x.z < intersect_uvt.z) {
+        intersect_uvt = from_tmax_x;
     }
-
-    if ((origin + tmax.y * direction).x > data.aabb->minX && (origin + tmax.y * direction).x < data.aabb->maxX && (origin + tmax.y * direction).z > data.aabb->minZ && (origin + tmax.y * direction).z < data.aabb->maxZ && tmax.y < t)
-    {
-        t = tmax.y;
+    if (from_tmax_y.z > 0 && from_tmax_y.z < intersect_uvt.z) {
+        intersect_uvt = from_tmax_y;
     }
-
-    if ((origin + tmax.z * direction).y > data.aabb->minX && (origin + tmax.z * direction).x < data.aabb->maxX && (origin + tmax.z * direction).y > data.aabb->minY && (origin + tmax.z * direction).y < data.aabb->maxY && tmax.z < t)
-    {
-        t = tmax.z;
+    if (from_tmax_z.z > 0 && from_tmax_z.z < intersect_uvt.z) {
+        intersect_uvt = from_tmax_z;
     }
-
-    if ((origin + tmin.x * direction).y > data.aabb->minY && (origin + tmin.x * direction).y < data.aabb->maxY && (origin + tmin.x * direction).z > data.aabb->minZ && (origin + tmin.x * direction).z < data.aabb->maxZ && tmin.x < t)
-    {
-        t = tmin.x;
+    if (from_tmin_x.z > 0 && from_tmin_x.z < intersect_uvt.z) {
+        intersect_uvt = from_tmin_x;
     }
-
-    if ((origin + tmin.y * direction).x > data.aabb->minX && (origin + tmin.y * direction).x < data.aabb->maxX && (origin + tmin.z * direction).z > data.aabb->minZ && (origin + tmin.x * direction).z < data.aabb->maxZ && tmin.y < t)
-    {
-        t = tmin.y;
+    if (from_tmin_y.z > 0 && from_tmin_y.z < intersect_uvt.z) {
+        intersect_uvt = from_tmin_y;
     }
-
-    if ((origin + tmin.z * direction).z > data.aabb->minX && (origin + tmin.z * direction).x < data.aabb->maxX && (origin + tmin.z * direction).y > data.aabb->minY && (origin + tmin.z * direction).y < data.aabb->maxY && tmin.z < t)
-    {
-        t = tmin.z;
-    }
-
-    float3 bvh_intersect = origin + t * direction;
-    bvh_intersect = bvh_intersect - data.position;
-    float3 init_xyz = {};
-    init_xyz.x = cos(data.theta) * bvh_intersect.x + sin(data.theta) * bvh_intersect.y;
-    init_xyz.y = -sin(data.theta) * bvh_intersect.x + cos(data.theta) * bvh_intersect.y;
-    init_xyz.z = bvh_intersect.z;
-
-    float3 init_uvt = {};
-    init_uvt.x = atan(init_xyz.z / init_xyz.x);
-    if (init_xyz.x > 0 && init_xyz.z < 0)
-    {
-        init_uvt.x += 2 * M_PI;
-    }
-    else if (init_xyz.x < 0)
-    {
-        init_uvt.x += M_PI;
-    }
-    init_uvt.y = (init_xyz.y - data.aabb->minY) / (data.aabb->maxY - data.aabb->minY);
-    if (init_uvt.y < 0)
-    {
-        init_uvt.y = 0.00001f;
-    }
-    else if (init_uvt.y > 1)
-    {
-        init_uvt.y = 0.99999f;
-    }
-    init_uvt.z = t;
-
-    float3 intersect_uvt = init_uvt;
-
-    int max_round = 5;
-    float delta = 0.1;
-    float epsilon = 0.00001;
-
-    for (int i = 0; i < max_round; i++)
-    {
-        float3 Jocab_first_row = { -CalculateX(intersect_uvt.y, data) * sin(intersect_uvt.x), CalculateDx(intersect_uvt.y, data) * cos(intersect_uvt.x), -direction.x };
-        float3 Jocab_second_row = { 0, CalculateDy(intersect_uvt.y, data), -direction.y };
-        float3 Jocab_third_row = { CalculateX(intersect_uvt.y, data) * cos(intersect_uvt.x), CalculateDx(intersect_uvt.y, data) * sin(intersect_uvt.x), -direction.z };
-
-        float3 F_uvt = { CalculateX(intersect_uvt.y, data) * cos(intersect_uvt.x), CalculateY(intersect_uvt.y, data), CalculateX(intersect_uvt.y, data) * sin(intersect_uvt.x) };
-        F_uvt = F_uvt - origin - direction * intersect_uvt.z;
-
-        float3 d_uvt = {};
-        if (abs(Jocab_first_row.x) > epsilon)
-        {
-            float coefficient = (Jocab_third_row.x / Jocab_first_row.x);
-            Jocab_third_row -= coefficient * Jocab_first_row;
-            F_uvt.z -= coefficient * F_uvt.x;
-        }
-
-        if (abs(Jocab_second_row.y) > epsilon)
-        {
-            float coefficient = (Jocab_third_row.y / Jocab_second_row.y);
-            Jocab_third_row -= coefficient * Jocab_second_row;
-            F_uvt.z -= coefficient * F_uvt.y;
-        }
-
-        if (abs(Jocab_third_row.z) > epsilon)
-        {
-            d_uvt.z = F_uvt.z / Jocab_third_row.z;
-        }
-        else
-        {
-            return;
-        }
-
-        d_uvt.y = (F_uvt.y - Jocab_second_row.z * d_uvt.z) / Jocab_second_row.y;
-        d_uvt.x = (F_uvt.x - Jocab_first_row.z * d_uvt.z - Jocab_first_row.y * d_uvt.y) / Jocab_first_row.x;
-        intersect_uvt -= d_uvt;
-
-        if (intersect_uvt.y < 0)
-        {
-            intersect_uvt.y = 0.00001;
-        }
-        else if (intersect_uvt.y > 1)
-        {
-            intersect_uvt.y = 0.99999;
-        }
-        if (intersect_uvt.x < 0)
-        {
-            intersect_uvt.x = 0.f;
-        }
-        else if (intersect_uvt.x > 2 * M_PI)
-        {
-            intersect_uvt.x = 2 * M_PI;
-        }
-        if (dot(d_uvt, d_uvt) < delta)
-        {
-            break;
-        }
+    if (from_tmin_z.z > 0 && from_tmin_z.z < intersect_uvt.z) {
+        intersect_uvt = from_tmin_z;
     }
 
     float3 intersect_xyz = {};
@@ -411,33 +395,24 @@ extern "C" __global__ void __intersection__curve() {
     intersect_xyz.y = CalculateY(intersect_uvt.y, data);
     intersect_xyz.z = CalculateX(intersect_uvt.y, data) * sin(intersect_uvt.x);
 
-    intersect_xyz.x = cos(data.theta) * intersect_xyz.x - sin(data.theta) * intersect_xyz.y;
-    intersect_xyz.y = sin(data.theta) * intersect_xyz.x + cos(data.theta) * intersect_xyz.y;
-    intersect_xyz += data.position;
-
-    t = intersect_uvt.z;
-    float res = 0.01f;
-    if (length(origin + t * direction - intersect_xyz) > res)
+    float res = 0.001f;
+    if (length(origin + intersect_uvt.z * direction - intersect_xyz) > res)
     {
         return;
     }
+    intersect_xyz += data.position;
     float3 tangent = { CalculateDx(intersect_uvt.y, data), CalculateDy(intersect_uvt.y, data), 0 };
     tangent = normalize(tangent);
     float3 norm = { -tangent.y, tangent.x, 0 };
     norm = { norm.x * cos(intersect_uvt.x), norm.y, norm.x * sin(intersect_uvt.x) };
-    norm = { norm.x * cos(data.theta) - norm.y * sin(data.theta),
-            norm.x * sin(data.theta) + norm.y * cos(data.theta),
-            norm.z };
+
     if (dot(norm, direction) > 0)
     {
         norm = -norm;
     }
 
-    optixReportIntersection(t, 0, __float_as_int(norm.x), __float_as_int(norm.y), __float_as_int(norm.z));
+    optixReportIntersection(intersect_uvt.z, 0, __float_as_int(norm.x), __float_as_int(norm.y), __float_as_int(norm.z));
 }
-
-
-
 
 extern "C" __device__ void __direct_callable__naive_diffuse(unsigned int& seed, float3& result, TraceResult& traceResult, float3& attenuation, float3& rayOrigin, float3& rayDir) {
     NaiveDiffuseData& data = *(NaiveDiffuseData*)traceResult.material.data;
@@ -452,11 +427,67 @@ extern "C" __device__ void __direct_callable__naive_diffuse(unsigned int& seed, 
     attenuation *= 2 * cosine * data.albedo / renderParams.russianRouletteProbability;
 }
 
-extern "C" __device__ void __direct_callable__naive_mirror(unsigned int& seed, float3 & result, TraceResult & traceResult, float3 & attenuation, float3 & rayOrigin, float3 & rayDir) {
-    NaiveMirrorData& data = *(NaiveMirrorData*)traceResult.material.data;
+extern "C" __device__ void __direct_callable__naive_metal(unsigned int& seed, float3 & result, TraceResult & traceResult, float3 & attenuation, float3 & rayOrigin, float3 & rayDir) {
+    NaiveMetalData& data = *(NaiveMetalData*)traceResult.material.data;
 
     rayOrigin = traceResult.position;
-    rayDir = reflect(rayDir, traceResult.normal);
+    rayDir = reflect(rayDir, traceResult.normal) + data.roughness * RandomInUnitSphere(seed);
+    rayDir = normalize(rayDir);
 
     attenuation *= 1 / renderParams.russianRouletteProbability;
 }
+
+
+extern "C" __device__ void __direct_callable__naive_dielectrics(unsigned int& seed, float3 & result, TraceResult & traceResult, float3 & attenuation, float3 & rayOrigin, float3 & rayDir) {
+    NaiveDielectricsData& data = *(NaiveDielectricsData*)traceResult.material.data;
+
+    rayOrigin = traceResult.position;
+
+    float refractivity = traceResult.outer ? data.refractivity : 1.f / data.refractivity;
+    float cosTheta = min(dot(-rayDir, traceResult.normal), 1.0f);
+    float sinTheta = sqrtf(1.0f - cosTheta * cosTheta);
+
+    if (refractivity * sinTheta > 1.0f || SchlickFresnelFeflectance(cosTheta, refractivity) > rnd(seed)) {
+        rayDir = reflect(rayDir, traceResult.normal);
+    } else {
+        rayDir = Refract(rayDir, traceResult.normal, refractivity);
+    }
+
+    attenuation *= 1 / renderParams.russianRouletteProbability;
+}
+
+extern "C" __device__ void __direct_callable__disney_pbr(unsigned int& seed, float3 & result, TraceResult & traceResult, float3 & attenuation, float3 & rayOrigin, float3 & rayDir) {
+    DisneyPbrData& data = *(DisneyPbrData*)traceResult.material.data;
+
+    const float3 beforeRayDir = rayDir;
+
+    rayOrigin = traceResult.position;
+    rayDir = RandomSampleHemisphere(seed, traceResult.normal);
+
+    const float pdf = 1 / (2 * M_PI);
+    const float cosine = dot(rayDir, traceResult.normal);
+
+    // Make a fake tanget
+    float3 tangentHelper = abs(traceResult.normal.x > 0.99) ? make_float3(0, 0, 1) : make_float3(1, 0, 0);
+
+    float3 bitangent = normalize(cross(traceResult.normal, tangentHelper));
+    float3 tangent = normalize(cross(traceResult.normal, bitangent));
+   
+    attenuation *= cosine * DisneyBRDF(rayDir, traceResult.normal, -beforeRayDir, tangent, bitangent, data) / pdf / renderParams.russianRouletteProbability;
+}
+
+extern "C" __device__ void __direct_callable__dispersion(unsigned int& seed, float3 & result, TraceResult & traceResult, float3 & attenuation, float3 & rayOrigin, float3 & rayDir) {
+    DisneyPbrData& data = *(DisneyPbrData*)traceResult.material.data;
+
+    const float3 beforeRayDir = rayDir;
+
+    rayOrigin = traceResult.position;
+    rayDir = RandomSampleHemisphere(seed, traceResult.normal);
+
+    const float pdf = 1 / (2 * M_PI);
+    const float cosine = dot(rayDir, traceResult.normal);
+
+}
+
+
+

@@ -16,9 +16,10 @@ extern "C" int main(int ac, char** av) {
         
         PathTracer renderer;
 
-        Shader& naiveDiffuseShader = renderer.CreateShader("__direct_callable__naive_diffuse");
-
-        Shader& naiveMirrorShader = renderer.CreateShader("__direct_callable__naive_mirror");
+        Shader naiveDiffuseShader = renderer.CreateShader("__direct_callable__naive_diffuse");
+        Shader naiveDielectrixShader = renderer.CreateShader("__direct_callable__naive_dielectrics");
+        Shader naiveMetalShader = renderer.CreateShader("__direct_callable__naive_metal");
+        Shader disneyPbrShader = renderer.CreateShader("__direct_callable__disney_pbr");
 
         NaiveDiffuseData white, whiteLight, red, green;
     
@@ -27,18 +28,36 @@ extern "C" int main(int ac, char** av) {
         red.albedo = make_float3(0.8f, 0.05f, 0.05f);
         green.albedo = make_float3(0.05f, 0.8f, 0.05f);
 
-        NaiveMirrorData mirror;
+        NaiveMetalData metal;
+
+        metal.roughness = 0.5f;
 
         auto whiteMat = naiveDiffuseShader.CreateHostMaterial(white);
         auto whiteLightMat = naiveDiffuseShader.CreateHostMaterial(whiteLight);
         auto redMat = naiveDiffuseShader.CreateHostMaterial(red);
         auto blueMat = naiveDiffuseShader.CreateHostMaterial(green);
+        auto mirrorMat = naiveMetalShader.CreateHostMaterial(metal);
 
-        auto mirrorMat = naiveMirrorShader.CreateHostMaterial(mirror);
+        
+        NaiveDielectricsData dielectrics;
+        dielectrics.refractivity = 1.5f;
+
+        auto dielectricsMat = naiveDielectrixShader.CreateHostMaterial(dielectrics);
+
+
+        DisneyPbrData pbrData;
+        pbrData.baseColor = make_float3(0.2f, 0.8f, 0.2f);
+        pbrData.roughness = 0.3f;
+        pbrData.specular = 0.2f;
+        pbrData.subsurface = 1.0f;
+        pbrData.specularTint = 0.6f;
+        pbrData.metallic = 0.7f;
+
+        auto roughPbr = disneyPbrShader.CreateHostMaterial(pbrData);
 
         Mesh plane, cube, leftPlane, rightPlane, light, cube2;
 
-        plane.AddCube(make_float3(0, 0, 3), make_float3(3, 3, 0.1f));
+        // plane.AddCube(make_float3(0, 0, 3), make_float3(3, 3, 0.1f));
         plane.AddCube(make_float3(0, -3, 0), make_float3(3, 0.1f, 3));
         plane.AddCube(make_float3(0, 3, 0), make_float3(3, 0.1f, 3));
         plane.material = whiteMat;
@@ -64,9 +83,9 @@ extern "C" int main(int ac, char** av) {
         
         Sphere haha;
 
-        haha.position = make_float3(2, 0, 0);
-        haha.radius = 0.5f;
-        // haha.material.albedo = make_float3(1.f, 1.f, 1.f);
+        haha.position = make_float3(0, 0, 0);
+        haha.radius = 1.5f;
+        haha.material = dielectricsMat;
 
         Sphere test;
         test.position = make_float3(-1, 0, 1);
@@ -76,19 +95,19 @@ extern "C" int main(int ac, char** av) {
 
         Curve curve;
 
-        curve.position = make_float3(0);
-        curve.points = { make_float3(-1, -1, 0), make_float3(1, 0, 0) , make_float3(1, 1, 0), make_float3(1, 2, 0)};
+        curve.position = make_float3(0, -1, 1);
+        curve.points = { make_float3(1, -1, 0), make_float3(2, 0, 0) , make_float3(1, 1, 0)};
         curve.theta = 0;
         curve.material = mirrorMat;
 
-        Mesh bunny = Mesh::LoadObj("../bunny.obj")[0];
+        Mesh bunny = Mesh::LoadObj("../models/bunny.obj")[0];
         bunny.material = whiteMat;
         bunny.Scale(make_float3(1.5f));
-        bunny.Move(make_float3(1.5, -2, -1.f));
+        bunny.Move(make_float3(0.5f, -1.0f, 1.f));
         
-
-        // renderer.AddCurve(std::move(curve));
-        renderer.AddMesh(std::move(bunny));
+             
+        renderer.AddCurve(std::move(curve));
+        // renderer.AddMesh(std::move(bunny));
         renderer.AddMesh(std::move(plane));
         // renderer.AddMesh(std::move(cube));
         // renderer.AddMesh(std::move(cube2));
@@ -97,7 +116,7 @@ extern "C" int main(int ac, char** av) {
         renderer.AddMesh(std::move(light));
 
         // renderer.AddSphere(std::move(haha));
-        renderer.AddSphere(std::move(test));
+        // renderer.AddSphere(std::move(test));
 
         PathTracerWindow window(&renderer);
 
