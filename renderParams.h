@@ -1,6 +1,9 @@
 #pragma once
 
-#include "optixLib.h"
+#include <cuda_runtime.h>
+#include <optix.h>
+#include <optix_stubs.h>
+
 
 enum { RADIANCE_RAY_TYPE = 0, /* OCCLUSION_RAY_TYPE = 1,*/ RAY_TYPE_COUNT };
 
@@ -26,6 +29,7 @@ struct Material {
 
 struct DeviceMeshData {
 	float3* vertex;
+	float3* normal;
 	int3* index;
 };
 
@@ -35,9 +39,12 @@ struct DeviceSphereData {
 };
 
 struct DeviceCurveData {
+	int n;
 	float3* points;
+	int* combs;
 	float3 position;
-	float3 axis;
+	float theta;
+	OptixAabb* aabb;
 };
 
 struct ShaderBindingData {
@@ -53,7 +60,7 @@ struct ShaderBindingData {
 struct RenderParams {
 	int2 screenSize {512, 512};
 
-	int samplesPerLaunch = 128;
+	int samplesPerLaunch = 64;
 
 	float russianRouletteProbability = 0.9f;
 

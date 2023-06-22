@@ -178,7 +178,7 @@ void PathTracer::CreateOptixModule() {
 
 	// Important, Payload and AttributeNum
 	optixPipelineCompileOptions.numPayloadValues = 2;
-	optixPipelineCompileOptions.numAttributeValues = 2;
+	optixPipelineCompileOptions.numAttributeValues = 3;
 	
 	// Enables debug exceptions during optix launches. This may incur significant performance cost and should only be done during development.
 #ifdef _DEBUG 

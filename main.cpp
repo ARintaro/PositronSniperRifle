@@ -69,20 +69,26 @@ extern "C" int main(int ac, char** av) {
         // haha.material.albedo = make_float3(1.f, 1.f, 1.f);
 
         Sphere test;
-        test.position = make_float3(-1, 0, 0);
-        test.radius = 1.f;
+        test.position = make_float3(-1, 0, 1);
+        test.radius = 1.5f;
         // test.material.emission = make_float3(1.f, 1.f, 1.f);
-        test.material = whiteMat;
+        test.material = mirrorMat;
 
         Curve curve;
 
         curve.position = make_float3(0);
-        curve.points = { make_float3(1) };
+        curve.points = { make_float3(-1, -1, 0), make_float3(1, 0, 0) , make_float3(1, 1, 0), make_float3(1, 2, 0)};
+        curve.theta = 0;
         curve.material = mirrorMat;
-       
 
-        renderer.AddCurve(std::move(curve));
+        Mesh bunny = Mesh::LoadObj("../bunny.obj")[0];
+        bunny.material = whiteMat;
+        bunny.Scale(make_float3(1.5f));
+        bunny.Move(make_float3(1.5, -2, -1.f));
+        
 
+        // renderer.AddCurve(std::move(curve));
+        renderer.AddMesh(std::move(bunny));
         renderer.AddMesh(std::move(plane));
         // renderer.AddMesh(std::move(cube));
         // renderer.AddMesh(std::move(cube2));
@@ -91,14 +97,14 @@ extern "C" int main(int ac, char** av) {
         renderer.AddMesh(std::move(light));
 
         // renderer.AddSphere(std::move(haha));
-        // renderer.AddSphere(std::move(test));
+        renderer.AddSphere(std::move(test));
 
         PathTracerWindow window(&renderer);
 
         window.Run();
     }
     catch (std::runtime_error& e) {
-        
+        std::cerr << e.what() << std::endl;
         exit(1);
     }
 

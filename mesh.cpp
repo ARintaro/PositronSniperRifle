@@ -1,9 +1,126 @@
+#define TINYOBJLOADER_IMPLEMENTATION
+
 #include "mesh.h"
 #include "sutil/vec_math.h"
 #include "sutil/Matrix.h"
 #include "renderer.h"
 
-void Mesh::AddCube(const 
+
+
+namespace std {
+	inline bool operator < (const tinyobj::index_t& a,
+		const tinyobj::index_t& b)
+	{
+		if (a.vertex_index < b.vertex_index) return true;
+		if (a.vertex_index > b.vertex_index) return false;
+
+		if (a.normal_index < b.normal_index) return true;
+		if (a.normal_index > b.normal_index) return false;
+
+		if (a.texcoord_index < b.texcoord_index) return true;
+		if (a.texcoord_index > b.texcoord_index) return false;
+
+		return false;
+	}
+}
+
+int Mesh::AddVertex(tinyobj::attrib_t& attributes, const tinyobj::index_t& idx, std::map<tinyobj::index_t, int>& knownVertices) {
+	if (knownVertices.find(idx) != knownVertices.end())
+		return knownVertices[idx];
+	const float3* vertex_array = (const float3*)attributes.vertices.data();
+	const float3* normal_array = (const float3*)attributes.normals.data();
+	const float2* texcoord_array = (const float2*)attributes.texcoords.data();
+
+	int newID = vertex.size();
+	knownVertices[idx] = newID;
+	vertex.push_back(vertex_array[idx.vertex_index]);
+
+	if (idx.normal_index >= 0) {
+		while (normal.size() < vertex.size())
+			normal.push_back(normal_array[idx.normal_index]);
+	}
+	if (idx.texcoord_index >= 0) {
+		while (texcoord.size() < vertex.size())
+			texcoord.push_back(texcoord_array[idx.texcoord_index]);
+	}
+	// just for sanity's sake:
+	if (texcoord.size() > 0)
+		texcoord.resize(vertex.size());
+	// just for sanity's sake:
+	if (normal.size() > 0)
+		normal.resize(vertex.size());
+
+	return newID;
+}
+
+
+
+std::vector<Mesh> Mesh::LoadObj(const std::string& fileName) {
+	
+	const std::string mtlDir
+		= fileName.substr(0, fileName.rfind('/') + 1);
+
+	tinyobj::attrib_t attributes;
+	std::vector<tinyobj::shape_t> shapes;
+	std::vector<tinyobj::material_t> materials;
+	std::string err = "";
+
+	bool readOK
+		= tinyobj::LoadObj(&attributes,
+			&shapes,
+			&materials,
+			&err,
+			&err,
+			fileName.c_str(),
+			mtlDir.c_str(),
+			true);
+	if (!readOK) {
+		throw std::runtime_error("Could not read OBJ model from " + fileName + ":" + mtlDir + " : " + err);
+	}
+
+	// if (materials.empty())
+//		throw std::runtime_error("could not parse materials ...");
+
+	vector<Mesh> meshes;
+
+	std::cout << "Done loading obj file - found " << shapes.size() << " shapes with " << materials.size() << " materials" << std::endl;
+	for (int shapeID = 0; shapeID < (int)shapes.size(); shapeID++) {
+		tinyobj::shape_t& shape = shapes[shapeID];
+
+		std::set<int> materialIDs;
+		for (auto faceMatID : shape.mesh.material_ids)
+			materialIDs.insert(faceMatID);
+
+		for (int materialID : materialIDs) {
+			std::map<tinyobj::index_t, int> knownVertices;
+			Mesh mesh;
+
+			for (int faceID = 0; faceID < shape.mesh.material_ids.size(); faceID++) {
+				if (shape.mesh.material_ids[faceID] != materialID) continue;
+				tinyobj::index_t idx0 = shape.mesh.indices[3 * faceID + 0];
+				tinyobj::index_t idx1 = shape.mesh.indices[3 * faceID + 1];
+				tinyobj::index_t idx2 = shape.mesh.indices[3 * faceID + 2];
+
+				int3 idx = make_int3(mesh.AddVertex(attributes, idx0, knownVertices),
+					mesh.AddVertex(attributes, idx1, knownVertices),
+					mesh.AddVertex(attributes, idx2, knownVertices));
+				mesh.index.push_back(idx);
+				// mesh->diffuse = (const vec3f&)materials[materialID].diffuse;
+				// mesh->diffuse = gdt::randomColor(materialID);
+			}
+
+			if (!mesh.vertex.empty()) {
+				meshes.push_back(std::move(mesh));
+			}
+				
+		}
+	}
+
+	std::cout << "created a total of " << meshes.size() << " meshes" << std::endl;
+	return meshes;
+}
+
+void Mesh::AddCube(const
 	float3 & center, const float3& halfSize) {
 	int3 firstVertexId = make_int3((int)vertex.size());
 
@@ -16,23 +133,23 @@ void Mesh::AddCube(const
 	vertex.push_back(center + make_float3(1, 1, -1) * halfSize); // 6
 	vertex.push_back(center + make_float3(1, -1, -1) * halfSize); // 7
 
-	index.push_back(firstVertexId + make_int3(0, 1, 2));
-	index.push_back(firstVertexId + make_int3(0, 2, 3));
+	index.push_back(firstVertexId + make_int3(0, 2, 1));
+	index.push_back(firstVertexId + make_int3(0, 3, 2));
 
-	index.push_back(firstVertexId + make_int3(2, 5, 3));
-	index.push_back(firstVertexId + make_int3(2, 4, 5));
+	index.push_back(firstVertexId + make_int3(2, 3, 5));
+	index.push_back(firstVertexId + make_int3(2, 5, 4));
 
-	index.push_back(firstVertexId + make_int3(4, 6, 5));
-	index.push_back(firstVertexId + make_int3(7, 5, 6));
+	index.push_back(firstVertexId + make_int3(4, 5, 6));
+	index.push_back(firstVertexId + make_int3(7, 6, 5));
 
-	index.push_back(firstVertexId + make_int3(0, 6, 1));
-	index.push_back(firstVertexId + make_int3(0, 7, 6));
+	index.push_back(firstVertexId + make_int3(0, 1, 6));
+	index.push_back(firstVertexId + make_int3(0, 6, 7));
 
-	index.push_back(firstVertexId + make_int3(1, 6, 2));
-	index.push_back(firstVertexId + make_int3(2, 6, 4));
+	index.push_back(firstVertexId + make_int3(1, 2, 6));
+	index.push_back(firstVertexId + make_int3(2, 4, 6));
 
-	index.push_back(firstVertexId + make_int3(0, 3, 7));
-	index.push_back(firstVertexId + make_int3(3, 5, 7));
+	index.push_back(firstVertexId + make_int3(0, 7, 3));
+	index.push_back(firstVertexId + make_int3(3, 7, 5));
 }
 
 void Mesh::AddTriangle(const float3& a, const float3& b, const float3& c) {
@@ -60,9 +177,18 @@ void Mesh::Move(const float3& delta) {
 	}
 }
 
+void Mesh::Scale(const float3& scale) {
+	for (auto& v : vertex) {
+		v *= scale;
+	}
+}
+
 void Mesh::GetBuildInput(OptixBuildInput& input) {
 	deviceVertex.Upload(vertex);
 	deviceIndex.Upload(index);
+	if (normal.size() > 0) {
+		deviceNormal.Upload(normal);
+	}
 
 	input = {};
 	input.type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
@@ -93,8 +219,11 @@ void Mesh::GetShaderBindingRecord(HitgroupRecord& record, const std::vector<Opti
 
 	data.vertex = (float3*)deviceVertex.GetDevicePointer();
 	data.index = (int3*)deviceIndex.GetDevicePointer();
+	data.normal = normal.size() > 0 ? (float3*)deviceNormal.GetDevicePointer() : nullptr;
 	record.data.material = material->CreateMaterial();
 }
+
+
 
 void Sphere::GetBuildInput(OptixBuildInput& input) {
 	devicePosition.Upload(&position, 1);
@@ -126,10 +255,13 @@ void Sphere::GetShaderBindingRecord(HitgroupRecord& record, const std::vector<Op
 }
 
 void Curve::GetBuildInput(OptixBuildInput& input) {
+
+	CalculateComb();
 	aabb = GetAabb();
 
 	devicePoints.Upload(points);
 	deviceAabb.Upload(&aabb, 1);
+	deviceCombs.Upload(combs);
 
 	input = {};
 	input.type = OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
@@ -149,16 +281,103 @@ void Curve::GetShaderBindingRecord(HitgroupRecord& record, const std::vector<Opt
 	// Object Type 2 For Curve
 	CheckOptiXErrors(optixSbtRecordPackHeader(hitPrograms[CURVE_OBJECT_TYPE], &record));
 
-	data.axis = axis;
+	data.n = points.size()-1;
+	data.aabb = (OptixAabb*)deviceAabb.GetDevicePointer();
+	data.theta = theta;
 	data.points = (float3*)devicePoints.GetDevicePointer();
 	data.position = position;
+	data.combs = (int*)deviceCombs.GetDevicePointer();
 	record.data.material = material->CreateMaterial();
 }
 
 OptixAabb Curve::GetAabb() {
-	const float radius = 1;
+	float3 min_range = make_float3(1e10);
+	float3 max_range = make_float3(-1e10);
+
+	GetRange(min_range, max_range);
+
 	return OptixAabb{
-		/* minX = */ position.x - radius, /* minY = */ position.y - radius, /* minZ = */ position.z - radius,
-		/* maxX = */ position.x + radius, /* maxY = */ position.y + radius, /* maxZ = */ position.z + radius
+		/* minX = */ min_range.x, /* minY = */ min_range.y, /* minZ = */ min_range.z,
+		/* maxX = */ max_range.x, /* maxY = */ max_range.y, /* maxZ = */ max_range.z
 	};
 }
+
+void Curve::CalculateComb() {
+	int n = points.size()-1;
+	combs.resize(n+1);
+	int cni = 1;
+	for (int i = 0; i <= n; i++) {
+		combs[i] = cni;
+		cni = cni * (n - i) / (i + 1);
+	}
+}
+
+float Curve::CalculateX(float v) {
+	int n = points.size()-1;
+	float result = 0.f;
+	for (int i = 0; i <= n; i++) {
+		result += points[i].x * combs[i] * pow(v, i) * pow(1 - v, n - i);
+	}
+	return result;
+}
+
+float Curve::CalculateY(float v)
+{
+	int n = points.size()-1;
+	float result = 0.f;
+	for (int i = 0; i <= n; i++) {
+		result += points[i].y * combs[i] * pow(v, i) * pow(1 - v, n - i);
+	}
+	return result;
+}
+
+void Curve::ZRotate(float3& vec)
+{
+	float tmpx = vec.x * cos(theta) - vec.y * sin(theta);
+	float tmpy = vec.x * sin(theta) + vec.y * cos(theta);
+	vec.x = tmpx;
+	vec.y = tmpy;
+}
+
+void Curve::GetRange(float3& min_range, float3& max_range)
+{
+	int N = 100;
+	for (int i = 0; i <= N; i++) {
+		for (int j = 0; j <= N; j++) {
+			float u = 2 * M_PI / N * j;
+			float tmpx = CalculateX((float)i / N);
+			float tmpy = CalculateY((float)i / N);
+
+			float3 tmp = { tmpx * cos(u), tmpy, -tmpx * sin(u) };
+			ZRotate(tmp);
+			tmp += position;
+
+			if (tmp.x < min_range.x) {
+				min_range.x = tmp.x;
+			}
+
+			if (tmp.y < min_range.y) {
+				min_range.y = tmp.y;
+			}
+
+			if (tmp.z < min_range.z) {
+				min_range.z = tmp.z;
+			}
+
+			if (tmp.x > max_range.x) {
+				max_range.x = tmp.x;
+			}
+
+			if (tmp.y > max_range.y) {
+				max_range.y = tmp.y;
+			}
+
+			if (tmp.z > max_range.z) {
+				max_range.z = tmp.z;
+			}
+
+		}
+	}
+
+}
+
