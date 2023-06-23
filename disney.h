@@ -54,8 +54,7 @@ static __forceinline__ __device__ float SmithGGX(float NdotV, float alphaG) {
     return 1 / (NdotV + sqrtf(a + b - a * b));
 }
 
-static __forceinline__ __device__ float SmithGggxAniso(float NdotV, float VdotX, float VdotY, float ax, float ay)
-{
+static __forceinline__ __device__ float SmithGggxAniso(float NdotV, float VdotX, float VdotY, float ax, float ay) {
     return 1 / (NdotV + sqrtf(sqr(VdotX * ax) + sqr(VdotY * ay) + sqr(NdotV)));
 }
 
@@ -73,9 +72,11 @@ float3 DisneyBRDF(const float3& V, const float3& N, const float3& L,
     float LdotH = dot(L, H);
 
     float3 Cdlin = data.baseColor;
-    float Cdlum = 0.3f * Cdlin.x + 0.6f * Cdlin.y + 0.1f * Cdlin.z; // luminance approx.
+    // luminance approx.
+    float Cdlum = 0.3f * Cdlin.x + 0.6f * Cdlin.y + 0.1f * Cdlin.z; 
 
-    float3 Ctint = Cdlum > 0 ? Cdlin / Cdlum : make_float3(1); // normalize lum. to isolate hue+sat
+    // normalize lum. to isolate hue+sat
+    float3 Ctint = Cdlum > 0 ? Cdlin / Cdlum : make_float3(1); 
     float3 Cspec0 = lerp(data.specular * 0.08f * lerp(make_float3(1), Ctint, data.specularTint), Cdlin, data.metallic);
     float3 Csheen = lerp(make_float3(1), Ctint, data.sheenTint);
 

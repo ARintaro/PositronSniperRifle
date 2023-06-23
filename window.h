@@ -129,7 +129,7 @@ protected:
 
     void SetCamera() {
 
-        renderer->SetCamera(PathTracerCameraSetting{ windowCamera.eye(), windowCamera.lookat(), windowCamera.up(), windowCamera.fovY() });
+        renderer->SetCamera(PathTracerCameraSetting{ windowCamera.eye(), windowCamera.lookat(), windowCamera.up(), windowCamera.fovY()});
     }
 
 

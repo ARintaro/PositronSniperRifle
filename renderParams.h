@@ -82,6 +82,9 @@ struct RenderParams {
 
 	float russianRouletteProbability = 0.9f;
 
+	float3 skyLightDirection = make_float3(0, -1, 1);
+	float3 skyLightColor = make_float3(1.f, 1.f, 1.f);
+
 	int maxDepth = 32;
 
 	struct Frame {
@@ -95,6 +98,8 @@ struct RenderParams {
 		float3 direction;
 		float3 horizontal;
 		float3 vertical;
+
+		float lenRadius;
 	}camera;
 
 	OptixTraversableHandle traversable;

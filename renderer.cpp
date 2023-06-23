@@ -3,6 +3,8 @@
 #include "optix_stack_size.h"
 #include "sutil/vec_math.h"
 
+#include <cmath>
+
 // This include may only appear in a single source file
 // If you put it in a hearder file, there would be a link error
 #include <optix_function_table_definition.h>
@@ -104,14 +106,16 @@ void PathTracer::SetCamera(const PathTracerCameraSetting& cameraSetting) {
 	curCameraSetting = cameraSetting;
 
 	renderParams.camera.position = cameraSetting.position;
-	renderParams.camera.direction = normalize(cameraSetting.lookAt - cameraSetting.position);
+
+	renderParams.camera.direction = cameraSetting.focusDist * normalize(cameraSetting.lookAt - cameraSetting.position);
 
 	const float tanFov = 2 * tan(cameraSetting.fov / 2 * M_PI / 180);
 
 	const float aspect = (float)renderParams.screenSize.x / renderParams.screenSize.y;
 
-	renderParams.camera.horizontal = tanFov * aspect * normalize(cross(renderParams.camera.direction, cameraSetting.up));
-	renderParams.camera.vertical = tanFov * normalize(cross(renderParams.camera.direction, renderParams.camera.horizontal));
+	renderParams.camera.horizontal = cameraSetting.focusDist * tanFov * aspect * normalize(cross(renderParams.camera.direction, cameraSetting.up));
+	renderParams.camera.vertical = cameraSetting.focusDist * tanFov * normalize(cross(renderParams.camera.direction, renderParams.camera.horizontal));
+	renderParams.camera.lenRadius = cameraSetting.aperture / 2;
 }
 
 int2 PathTracer::GetScreenSize() {

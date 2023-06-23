@@ -31,6 +31,8 @@ public:
 
 	void AddTriangle(const float3& a, const float3& b, const float3& c);
 
+	void AddPrism(const float3& center, const float halfsize, const float3& vertix);
+
 	void Rotate(float angle, const float3& axis);
 
 	void Move(const float3& delta);

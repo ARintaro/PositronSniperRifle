@@ -160,6 +160,26 @@ void Mesh::AddTriangle(const float3& a, const float3& b, const float3& c) {
 	index.push_back(firstVertexId + make_int3(0, 1, 2));
 }
 
+void Mesh::AddPrism(const float3& center, const float halfsize, const float3& vertix)
+{
+	int3 firstVertexId = make_int3((int)vertex.size());
+
+	vertex.push_back(center + make_float3(0, halfsize, halfsize ));
+	vertex.push_back(center + make_float3(0,halfsize, -halfsize));
+	vertex.push_back(center + make_float3(0, -halfsize, halfsize ));
+	vertex.push_back(center + make_float3(0, -halfsize, -halfsize));
+	vertex.push_back(vertix);
+
+	index.push_back(firstVertexId + make_int3(0, 2, 1));
+	index.push_back(firstVertexId + make_int3(1, 2, 3));
+	index.push_back(firstVertexId + make_int3(0, 1, 4));
+	index.push_back(firstVertexId + make_int3(1, 3, 4));
+	index.push_back(firstVertexId + make_int3(2, 0, 4));
+	index.push_back(firstVertexId + make_int3(3, 2, 4));
+}
+
+
+
 void Mesh::Rotate(float angle, const float3& axis) {
 	auto matrix = sutil::Matrix<4, 4>::rotate(angle * M_PI / 180, axis);
 

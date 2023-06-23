@@ -36,6 +36,8 @@ struct PathTracerCameraSetting {
 	float3 lookAt;
 	float3 up;
 	float fov;
+	float aperture = 0.03;
+	float focusDist = 2;
 };
 
 

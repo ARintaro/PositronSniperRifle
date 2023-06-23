@@ -51,6 +51,15 @@ float3 RandomInUnitSphere(unsigned int& seed) {
     }
 }
 
+static __forceinline__ __device__
+float2 RandomInUnitDisk(unsigned int& seed) {
+    while (true) {
+        float2 p = make_float2(rnd(seed) * 2 - 1, rnd(seed) * 2 - 1);
+        if (dot(p, p) >= 1) continue;
+        return p;
+    }
+}
+
 static __forceinline__ __device__ 
 float3 RandomSampleHemisphere(unsigned int& seed, const float3& normal) {
     const float3 vec_in_sphere = RandomInUnitSphere(seed);
@@ -68,7 +77,9 @@ static __forceinline__ __device__ float3 Refract(const float3& in, const float3&
     return r_out_perp + r_out_parallel;
 }
 
-
+static __forceinline__ __device__ float CalcRefractivityForColor(float3 refractivity, float3 color) {
+    return color.x > 0.5f ? refractivity.x : (color.y > 0.5f ? refractivity.y : refractivity.z);
+}
 
 
 static __forceinline__ __device__ float CalculateX(const float v, const DeviceCurveData& data) {
@@ -223,11 +234,13 @@ extern "C" __global__ void __raygen__renderFrame() {
     for (int i = 0; i < renderParams.samplesPerLaunch; i++) {
         const float2 screenPos = make_float2(px + rnd(seed), py + rnd(seed)) / make_float2(renderParams.screenSize);
 
-        float3 rayOrigin = camera.position;
+        float2 unitDisk = camera.lenRadius * RandomInUnitDisk(seed);
+
+        float3 rayOrigin = camera.position + unitDisk.x * normalize(camera.horizontal) + unitDisk.y * normalize(camera.vertical);
         float3 rayDir = normalize(camera.direction + (screenPos.y - 0.5f) * camera.vertical + (screenPos.x - 0.5f) * camera.horizontal);
 
         float3 attenuation = make_float3(1.f);
-        
+        float3 supposedColor = make_float3(1.f);
        
 
         for (int depth = 0; depth < renderParams.maxDepth; depth++) {
@@ -243,7 +256,11 @@ extern "C" __global__ void __raygen__renderFrame() {
                 break;
             }
 
-            optixDirectCall<void, unsigned int&, float3&, TraceResult&, float3&, float3&, float3&>(traceResult.material.programIndex, seed, result,traceResult, attenuation, rayOrigin, rayDir);
+            optixDirectCall<void, unsigned int&, float3&, TraceResult&, float3&, float3&, float3&, float3&>(traceResult.material.programIndex, seed, result,traceResult, attenuation, rayOrigin, rayDir, supposedColor);
+            
+            if (traceResult.missed) {
+                break;
+            }
         }
 
     }
@@ -414,10 +431,10 @@ extern "C" __global__ void __intersection__curve() {
     optixReportIntersection(intersect_uvt.z, 0, __float_as_int(norm.x), __float_as_int(norm.y), __float_as_int(norm.z));
 }
 
-extern "C" __device__ void __direct_callable__naive_diffuse(unsigned int& seed, float3& result, TraceResult& traceResult, float3& attenuation, float3& rayOrigin, float3& rayDir) {
+extern "C" __device__ void __direct_callable__naive_diffuse(unsigned int& seed, float3& result, TraceResult& traceResult, float3& attenuation, float3& rayOrigin, float3& rayDir, float3& supposedColor) {
     NaiveDiffuseData& data = *(NaiveDiffuseData*)traceResult.material.data;
 
-    result += data.emission * attenuation;
+    result += data.emission * attenuation * supposedColor;
 
     rayOrigin = traceResult.position;
     rayDir = RandomSampleHemisphere(seed, traceResult.normal);
@@ -427,7 +444,7 @@ extern "C" __device__ void __direct_callable__naive_diffuse(unsigned int& seed, 
     attenuation *= 2 * cosine * data.albedo / renderParams.russianRouletteProbability;
 }
 
-extern "C" __device__ void __direct_callable__naive_metal(unsigned int& seed, float3 & result, TraceResult & traceResult, float3 & attenuation, float3 & rayOrigin, float3 & rayDir) {
+extern "C" __device__ void __direct_callable__naive_metal(unsigned int& seed, float3 & result, TraceResult & traceResult, float3 & attenuation, float3 & rayOrigin, float3 & rayDir, float3& supposedColor) {
     NaiveMetalData& data = *(NaiveMetalData*)traceResult.material.data;
 
     rayOrigin = traceResult.position;
@@ -438,7 +455,7 @@ extern "C" __device__ void __direct_callable__naive_metal(unsigned int& seed, fl
 }
 
 
-extern "C" __device__ void __direct_callable__naive_dielectrics(unsigned int& seed, float3 & result, TraceResult & traceResult, float3 & attenuation, float3 & rayOrigin, float3 & rayDir) {
+extern "C" __device__ void __direct_callable__naive_dielectrics(unsigned int& seed, float3 & result, TraceResult & traceResult, float3 & attenuation, float3 & rayOrigin, float3 & rayDir, float3& supposedColor) {
     NaiveDielectricsData& data = *(NaiveDielectricsData*)traceResult.material.data;
 
     rayOrigin = traceResult.position;
@@ -456,7 +473,7 @@ extern "C" __device__ void __direct_callable__naive_dielectrics(unsigned int& se
     attenuation *= 1 / renderParams.russianRouletteProbability;
 }
 
-extern "C" __device__ void __direct_callable__disney_pbr(unsigned int& seed, float3 & result, TraceResult & traceResult, float3 & attenuation, float3 & rayOrigin, float3 & rayDir) {
+extern "C" __device__ void __direct_callable__disney_pbr(unsigned int& seed, float3 & result, TraceResult & traceResult, float3 & attenuation, float3 & rayOrigin, float3 & rayDir, float3& supposedColor) {
     DisneyPbrData& data = *(DisneyPbrData*)traceResult.material.data;
 
     const float3 beforeRayDir = rayDir;
@@ -476,18 +493,35 @@ extern "C" __device__ void __direct_callable__disney_pbr(unsigned int& seed, flo
     attenuation *= cosine * DisneyBRDF(rayDir, traceResult.normal, -beforeRayDir, tangent, bitangent, data) / pdf / renderParams.russianRouletteProbability;
 }
 
-extern "C" __device__ void __direct_callable__dispersion(unsigned int& seed, float3 & result, TraceResult & traceResult, float3 & attenuation, float3 & rayOrigin, float3 & rayDir) {
-    DisneyPbrData& data = *(DisneyPbrData*)traceResult.material.data;
-
-    const float3 beforeRayDir = rayDir;
-
+extern "C" __device__ void __direct_callable__dispersion(unsigned int& seed, float3 & result, TraceResult & traceResult, float3 & attenuation, float3 & rayOrigin, float3 &rayDir, float3& supposedColor) {
+    // NaiveDielectricsData& data = *(NaiveDielectricsData*)traceResult.material.data;
     rayOrigin = traceResult.position;
-    rayDir = RandomSampleHemisphere(seed, traceResult.normal);
 
-    const float pdf = 1 / (2 * M_PI);
-    const float cosine = dot(rayDir, traceResult.normal);
+    if (1.8f < supposedColor.x + supposedColor.y && supposedColor.x + supposedColor.y < 2.5f) {
+        // ³õ´ÎÕÛÉä
+        const float sample = rnd(seed) * 3;
+        supposedColor = (sample > 2 ? make_float3(3, 0, 0) : (sample > 1 ? make_float3(0, 3, 0) : make_float3(0, 0, 3)));
+    }
+    else if (traceResult.outer) {
+        traceResult.missed = true;
+        return;
+    }
+    
+    float refractivity = CalcRefractivityForColor(make_float3(1.2f, 1.3f, 1.5f), supposedColor);
+    refractivity = traceResult.outer ? refractivity : 1.f / refractivity;
+
+    float cosTheta = min(dot(-rayDir, traceResult.normal), 1.0f);
+    float sinTheta = sqrtf(1.0f - cosTheta * cosTheta);
+
+    if (refractivity * sinTheta > 1.0f || SchlickFresnelFeflectance(cosTheta, refractivity) > rnd(seed)) {
+        rayDir = reflect(rayDir, traceResult.normal);
+    }
+    else {
+        rayDir = Refract(rayDir, traceResult.normal, refractivity);
+    }
+
+    attenuation *= 1 / renderParams.russianRouletteProbability;
 
 }
-
 
 
