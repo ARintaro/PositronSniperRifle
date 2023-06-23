@@ -29,7 +29,6 @@ struct DisneyPbrData {
 };
 
 struct NaiveDiffuseData {
-	float3 emission = make_float3(0, 0, 0);
 	float3 albedo = make_float3(1, 1, 1);
 };
 
@@ -44,6 +43,7 @@ struct NaiveDielectricsData {
 struct Material {
 	void* data;
 	int programIndex;
+	float3 emission;
 };
 
 struct DeviceMeshData {
@@ -76,17 +76,28 @@ struct ShaderBindingData {
 	Material material;
 };
 
+struct DirectLightDescription {
+	int id;
+	float3 vertex[8];
+};
+
 struct RenderParams {
 	int2 screenSize {512, 512};
 
-	int samplesPerLaunch = 32;
+	int samplesPerLaunch = 64;
 
 	float russianRouletteProbability = 0.9f;
 
 	float3 skyLightDirection = make_float3(0, -1, 1);
 	float3 skyLightColor = make_float3(1.f, 1.f, 1.f);
 
-	int maxDepth = 16;
+	float globalFogDensity = 0.0f;
+	float3 globalFogAttenuation = make_float3(1, 1, 1);
+
+	int maxDepth = 4;
+
+	int directLightCount = 0;
+	DirectLightDescription* deviceDirectLights;
 
 	struct Frame {
 		int frameId = 0;

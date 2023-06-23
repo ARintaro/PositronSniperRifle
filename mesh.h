@@ -20,6 +20,7 @@ public:
 	virtual void GetShaderBindingRecord(HitgroupRecord& record, const std::vector<OptixProgramGroup>& hitPrograms) = 0;
 
 	virtual void GetBuildInput(OptixBuildInput& input) = 0;
+
 };
 
 class Mesh : public SceneObject {

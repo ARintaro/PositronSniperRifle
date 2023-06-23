@@ -1,13 +1,6 @@
 #pragma once
 
-#include "renderParams.h"
-#include <crt\host_defines.h>
-#include <optix_device.h>
-#include "sutil\vec_math.h"
-
-
-__constant__ float INV_PI = 1 / M_PI;
-__constant__ float INV_2PI = 1 / (2 * M_PI);
+#include "deviceHelper.cuh"
 
 static __forceinline__ __device__ float sqr(float x) {
     return x * x;
@@ -30,13 +23,13 @@ static __forceinline__ __device__  float GTR1(float NdotH, float a) {
     if (a >= 1) return INV_PI;
     float a2 = a * a;
     float t = 1 + (a2 - 1.f) * NdotH * NdotH;
-    return (a2 - 1.f) / (M_PI * logf(a2) * t);
+    return (a2 - 1.f) / (MPI * logf(a2) * t);
 }
 
 static __forceinline__ __device__  float GTR2(float NdotH, float a) {
     float a2 = a * a;
     float t = 1 + (a2 - 1) * NdotH * NdotH;
-    return a2 / (M_PI * t * t);
+    return a2 / (MPI * t * t);
 }
 
 static __forceinline__ __device__ float lerp(const float a, const float b, const float t) {
@@ -45,7 +38,7 @@ static __forceinline__ __device__ float lerp(const float a, const float b, const
 
 static __forceinline__ __device__ float GTR2_aniso(float NdotH, float HdotX, float HdotY, float ax, float ay)
 {
-    return 1.f / (M_PI * ax * ay * sqr(sqr(HdotX / ax) + sqr(HdotY / ay) + NdotH * NdotH));
+    return 1.f / (MPI * ax * ay * sqr(sqr(HdotX / ax) + sqr(HdotY / ay) + NdotH * NdotH));
 }
 
 static __forceinline__ __device__ float SmithGGX(float NdotV, float alphaG) {
@@ -94,7 +87,7 @@ float3 DisneyBRDF(const float3& V, const float3& N, const float3& L,
     float ss = 1.25f * (Fss * (1 / (NdotL + NdotV) - .5f) + .5f);
 
     // specular
-    float aspect = sqrt(1 - data.anisotropic * .9f);
+    float aspect = sqrtf(1 - data.anisotropic * .9f);
     float ax = fmax(0.001f, data.roughness * data.roughness / aspect);
     float ay = fmax(0.001f, data.roughness * data.roughness * aspect);
     float Ds = GTR2_aniso(NdotH, dot(H, X), dot(H, Y), ax, ay);
