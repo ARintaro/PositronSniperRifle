@@ -18,7 +18,8 @@ struct DisneyPbrData {
 	float roughness = 1;
 	float metallic = 0; 
 	float specular = 0;
-	float specularTint =0;
+	float specularTint = 0;
+
 	float sheenTint = 0;
 	float anisotropic = 0;
 	float sheen = 0;
@@ -78,14 +79,14 @@ struct ShaderBindingData {
 struct RenderParams {
 	int2 screenSize {512, 512};
 
-	int samplesPerLaunch = 64;
+	int samplesPerLaunch = 32;
 
 	float russianRouletteProbability = 0.9f;
 
 	float3 skyLightDirection = make_float3(0, -1, 1);
 	float3 skyLightColor = make_float3(1.f, 1.f, 1.f);
 
-	int maxDepth = 32;
+	int maxDepth = 16;
 
 	struct Frame {
 		int frameId = 0;

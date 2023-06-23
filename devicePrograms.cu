@@ -151,8 +151,8 @@ static __forceinline__ __device__ float3 Newton(float t, const float3& origin, c
 
     float3 intersect_uvt = init_uvt;
 
-    int max_round = 5;
-    float epsilon = 0.00001;
+    int max_round = 10;
+    float epsilon = 0.001;
 
     for (int i = 0; i < max_round; i++)
     {
@@ -412,7 +412,7 @@ extern "C" __global__ void __intersection__curve() {
     intersect_xyz.y = CalculateY(intersect_uvt.y, data);
     intersect_xyz.z = CalculateX(intersect_uvt.y, data) * sin(intersect_uvt.x);
 
-    float res = 0.001f;
+    float res = 0.01f;
     if (length(origin + intersect_uvt.z * direction - intersect_xyz) > res)
     {
         return;
@@ -441,7 +441,8 @@ extern "C" __device__ void __direct_callable__naive_diffuse(unsigned int& seed, 
 
     float cosine = dot(rayDir, traceResult.normal);
 
-    attenuation *= 2 * cosine * data.albedo / renderParams.russianRouletteProbability;
+    // attenuation *= 2 * cosine * data.albedo / renderParams.russianRouletteProbability;
+    attenuation *= data.albedo / renderParams.russianRouletteProbability;
 }
 
 extern "C" __device__ void __direct_callable__naive_metal(unsigned int& seed, float3 & result, TraceResult & traceResult, float3 & attenuation, float3 & rayOrigin, float3 & rayDir, float3& supposedColor) {
