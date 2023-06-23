@@ -81,15 +81,15 @@ void PathTracer::Resize(const int2& newSize) {
 	SetCamera(curCameraSetting);
 }
 
-void PathTracer::AddMesh(Mesh&& mesh) {
+void PathTracer::AddMesh(std::shared_ptr<Mesh> mesh) {
 	meshes.emplace_back(std::move(mesh));
 }
 
-void PathTracer::AddSphere(Sphere&& sphere) {
+void PathTracer::AddSphere(std::shared_ptr<Sphere> sphere) {
 	spheres.emplace_back(std::move(sphere));
 }
 
-void PathTracer::AddCurve(Curve&& curve) {
+void PathTracer::AddCurve(std::shared_ptr<Curve> curve) {
 	curves.emplace_back(std::move(curve));
 }
 Shader PathTracer::CreateShader(std::string name) {
@@ -131,8 +131,6 @@ void PathTracer::SaveImage(const char* fileName) {
 
 	sutil::saveImage(fileName, buffer, true);
 }
-
-
 
 static void PrintOptixLog(uint32_t level, const char* tag, const char* msg, void* /* callback_data */) {
 	std::clog << "[Optix Log]" << "[" << level << "]" << " " << msg << std::endl;
@@ -250,19 +248,19 @@ void PathTracer::BuildShaderBindingTable() {
 	int sbtOffset = 0;
 	for (int i = 0; i < meshes.size(); i++) {
 		HitgroupRecord& record = hitgroupRecords[i + sbtOffset];
-		meshes[i].GetShaderBindingRecord(record, hitPrograms);
+		meshes[i]->GetShaderBindingRecord(record, hitPrograms);
 	}
 	sbtOffset += geometryAccelDatas[MESH_OBJECT_TYPE].sbtRecordsCount;
 
 	for (int i = 0; i < spheres.size(); i++) {
 		HitgroupRecord& record = hitgroupRecords[i + sbtOffset];
-		spheres[i].GetShaderBindingRecord(record, hitPrograms);
+		spheres[i]->GetShaderBindingRecord(record, hitPrograms);
 	}
 	sbtOffset += geometryAccelDatas[SPHERE_OBJECT_TYPE].sbtRecordsCount;
 
 	for (int i = 0; i < curves.size(); i++) {
 		HitgroupRecord& record = hitgroupRecords[i + sbtOffset];
-		curves[i].GetShaderBindingRecord(record, hitPrograms);
+		curves[i]->GetShaderBindingRecord(record, hitPrograms);
 	}
 
 	hitRecordsBuffer.Upload(hitgroupRecords);

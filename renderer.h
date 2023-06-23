@@ -8,6 +8,7 @@
 #include "shader.hpp"
 
 using std::vector;
+using std::shared_ptr;
 
 struct __align__(OPTIX_SBT_RECORD_ALIGNMENT) RaygenRecord {
 	__align__(OPTIX_SBT_RECORD_ALIGNMENT) char header[OPTIX_SBT_RECORD_HEADER_SIZE];
@@ -58,11 +59,11 @@ public:
 
 	void Resize(const int2& newSize);
 
-	void AddMesh(Mesh&& mesh);
+	void AddMesh(shared_ptr<Mesh> mesh);
 
-	void AddSphere(Sphere&& sphere);
+	void AddSphere(shared_ptr<Sphere> sphere);
 
-	void AddCurve(Curve&& curve);
+	void AddCurve(shared_ptr<Curve> curve);
 
 	Shader CreateShader(std::string name);
 
@@ -75,7 +76,6 @@ public:
 	sutil::CUDAOutputBuffer<float3>* outputBuffer;
  
 protected:
-
 	void CreateOptixContext();
 
 	void CreateOptixModule();
@@ -92,9 +92,9 @@ protected:
 
 protected:
 	// Scene Inputs
-	vector<Mesh> meshes;
-	vector<Sphere> spheres;
-	vector<Curve> curves;
+	vector<shared_ptr<Mesh>> meshes;
+	vector<shared_ptr<Sphere>> spheres;
+	vector<shared_ptr<Curve>> curves;
 
 	PathTracerCameraSetting curCameraSetting;
 
@@ -136,6 +136,9 @@ protected:
 	CudaBuffer instancesAccelBuffer;
 	OptixTraversableHandle iasHandle;
 
+	vector<DirectLightDescription> directLights;
+	CudaBuffer deviceDirectLights;
+
 protected:
 	void BuildAccel(const vector<OptixBuildInput> inputs, CudaBuffer& structBuffer, OptixTraversableHandle& handle, unsigned int buildFlags = 0);
 
@@ -151,7 +154,7 @@ protected:
 		vector<OptixBuildInput> inputs(objects.size());
 
 		for (int objectId = 0; objectId < objects.size(); objectId++) {
-			objects[objectId].GetBuildInput(inputs[objectId]);
+			objects[objectId]->GetBuildInput(inputs[objectId]);
 		}
 
 		BuildAccel(inputs, data.structBuffer, data.handle);

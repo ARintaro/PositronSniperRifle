@@ -73,6 +73,7 @@ struct ShaderBindingData {
 		DeviceCurveData curve;
 	}data;
 
+	int directLightId = -1;
 	Material material;
 };
 

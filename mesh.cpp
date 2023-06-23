@@ -55,7 +55,7 @@ int Mesh::AddVertex(tinyobj::attrib_t& attributes, const tinyobj::index_t& idx, 
 
 
 
-std::vector<Mesh> Mesh::LoadObj(const std::string& fileName) {
+std::vector<shared_ptr<Mesh>> Mesh::LoadObj(const std::string& fileName) {
 	
 	const std::string mtlDir = fileName.substr(0, fileName.rfind('/'));
 
@@ -79,7 +79,7 @@ std::vector<Mesh> Mesh::LoadObj(const std::string& fileName) {
 	// if (materials.empty())
 //		throw std::runtime_error("could not parse materials ...");
 
-	vector<Mesh> meshes;
+	vector<shared_ptr<Mesh>> meshes;
 
 	std::cout << "Done loading obj file - found " << shapes.size() << " shapes with " << materials.size() << " materials" << std::endl;
 	for (int shapeID = 0; shapeID < (int)shapes.size(); shapeID++) {
@@ -91,7 +91,7 @@ std::vector<Mesh> Mesh::LoadObj(const std::string& fileName) {
 
 		for (int materialID : materialIDs) {
 			std::map<tinyobj::index_t, int> knownVertices;
-			Mesh mesh;
+			auto mesh = std::make_shared<Mesh>();
 
 			for (int faceID = 0; faceID < shape.mesh.material_ids.size(); faceID++) {
 				if (shape.mesh.material_ids[faceID] != materialID) continue;
@@ -99,15 +99,15 @@ std::vector<Mesh> Mesh::LoadObj(const std::string& fileName) {
 				tinyobj::index_t idx1 = shape.mesh.indices[3 * faceID + 1];
 				tinyobj::index_t idx2 = shape.mesh.indices[3 * faceID + 2];
 
-				int3 idx = make_int3(mesh.AddVertex(attributes, idx0, knownVertices),
-					mesh.AddVertex(attributes, idx1, knownVertices),
-					mesh.AddVertex(attributes, idx2, knownVertices));
-				mesh.index.push_back(idx);
+				int3 idx = make_int3(mesh->AddVertex(attributes, idx0, knownVertices),
+					mesh->AddVertex(attributes, idx1, knownVertices),
+					mesh->AddVertex(attributes, idx2, knownVertices));
+				mesh->index.push_back(idx);
 				// mesh->diffuse = (const vec3f&)materials[materialID].diffuse;
 				// mesh->diffuse = gdt::randomColor(materialID);
 			}
 
-			if (!mesh.vertex.empty()) {
+			if (!mesh->vertex.empty()) {
 				meshes.push_back(std::move(mesh));
 			}
 				
@@ -238,6 +238,7 @@ void Mesh::GetShaderBindingRecord(HitgroupRecord& record, const std::vector<Opti
 	data.vertex = (float3*)deviceVertex.GetDevicePointer();
 	data.index = (int3*)deviceIndex.GetDevicePointer();
 	data.normal = normal.size() > 0 ? (float3*)deviceNormal.GetDevicePointer() : nullptr;
+	record.data.directLightId = directLightId;
 	record.data.material = material->CreateMaterial();
 }
 
@@ -269,6 +270,7 @@ void Sphere::GetShaderBindingRecord(HitgroupRecord& record, const std::vector<Op
 
 	data.position = position;
 	data.radius = radius;
+	record.data.directLightId = directLightId;
 	record.data.material = material->CreateMaterial();
 }
 
@@ -305,6 +307,7 @@ void Curve::GetShaderBindingRecord(HitgroupRecord& record, const std::vector<Opt
 	data.points = (float3*)devicePoints.GetDevicePointer();
 	data.position = position;
 	data.combs = (int*)deviceCombs.GetDevicePointer();
+	record.data.directLightId = directLightId;
 	record.data.material = material->CreateMaterial();
 }
 

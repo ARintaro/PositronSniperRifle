@@ -147,7 +147,6 @@ extern "C" __global__ void __closesthit__curve() {
     result.position = position;
     result.material = material;
     result.distance = optixGetRayTmax();
-    result.directLightId = -1;
 }
 
 extern "C" __global__ void __intersection__curve() {

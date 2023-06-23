@@ -9,100 +9,100 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <support\tinygltf\stb_image_write.h>
 
-static void Scene1() {
-    PathTracer renderer;
-
-    Shader naiveDiffuseShader = renderer.CreateShader("__direct_callable__naive_diffuse");
-    Shader naiveDielectrixShader = renderer.CreateShader("__direct_callable__naive_dielectrics");
-    Shader naiveMetalShader = renderer.CreateShader("__direct_callable__naive_metal");
-    Shader disneyPbrShader = renderer.CreateShader("__direct_callable__disney_pbr");
-    Shader dispersionShader = renderer.CreateShader("__direct_callable__dispersion");
-
-    NaiveDiffuseData white, whiteLight, red, green, blue, lightyellow;
-
-    white.albedo = make_float3(0.8);
-    red.albedo = make_float3(0.8f, 0.05f, 0.05f);
-    green.albedo = make_float3(0.05f, 0.8f, 0.05f);
-    blue.albedo = make_float3(0.05f, 0.05f, 0.8f);
-    lightyellow.albedo = make_float3(0.3f, 0.3f, 0.1f);
-
-    NaiveMetalData metal;
-
-    metal.roughness = 0.f;
-
-    auto whiteMat = naiveDiffuseShader.CreateHostMaterial(white);
-    auto whiteLightMat = naiveDiffuseShader.CreateHostMaterial(whiteLight);
-    auto redMat = naiveDiffuseShader.CreateHostMaterial(red);
-    auto greenMat = naiveDiffuseShader.CreateHostMaterial(green);
-    auto blueMat = naiveDiffuseShader.CreateHostMaterial(blue);
-    auto lightyellowMat = naiveDiffuseShader.CreateHostMaterial(lightyellow);
-    auto mirrorMat = naiveMetalShader.CreateHostMaterial(metal);
-    auto dispersionMat = dispersionShader.CreateHostMaterial(metal);
-
-    NaiveDielectricsData dielectrics;
-    dielectrics.refractivity = 1.5f;
-
-    auto dielectricsMat = naiveDielectrixShader.CreateHostMaterial(dielectrics);
-
-
-    DisneyPbrData pbrData;
-    pbrData.baseColor = make_float3(0.2f, 0.2f, 0.8f);
-    pbrData.roughness = 0.5f;
-    pbrData.specular = 0.2f;
-    pbrData.subsurface = 1.0f;
-    pbrData.specularTint = 0.6f;
-    pbrData.metallic = 0.5f;
-
-    auto roughPbr = disneyPbrShader.CreateHostMaterial(pbrData);
-
-    Mesh plane, leftPlane, rightPlane, light, back;
-
-    plane.AddCube(make_float3(0, -3, 0), make_float3(6, 0.1f, 6));
-    plane.AddCube(make_float3(0, 3, 0), make_float3(3, 0.1f, 3));
-    plane.material = whiteMat;
-
-    back.AddCube(make_float3(0, 0, 3), make_float3(3, 3, 0.1f));
-    back.material = lightyellowMat;
-
-    leftPlane.AddCube(make_float3(-3, 0, 0), make_float3(0.1f, 3, 3));
-    leftPlane.material = redMat;
-
-    rightPlane.AddCube(make_float3(3, 0, 0), make_float3(0.1f, 3, 3));
-    rightPlane.material = greenMat;
-
-    light.AddCube(make_float3(0.f, 2.5f, 0.f), make_float3(1.f, 0.2f, 1.f));
-    light.material = whiteLightMat;
-
-    Mesh cube;
-    cube.AddCube(make_float3(0.8f, -1.8f, -1.5f), make_float3(0.5f, 0.5f, 0.5f));
-    cube.Rotate(50, make_float3(0.f, 1.f, 0.f));
-    cube.material = mirrorMat;
-
-    Curve curve;
-
-    curve.position = make_float3(-1.5f, -3.f, -1.f);
-    curve.points = { make_float3(0.5f, 0.f, 0), make_float3(1.f, 0.5f, 0) , make_float3(0.5f, 1.f, 0), make_float3(0.25f, 1.5f, 0), make_float3(0.5f, 2.f, 0) };
-    curve.theta = 0;
-    curve.material = roughPbr;
-
-    Mesh bunny = Mesh::LoadObj("../models/bunny.obj")[0];
-    bunny.material = dielectricsMat;
-    bunny.Scale(make_float3(1.5f));
-    bunny.Move(make_float3(0.5f, -1.f, -4));
-
-    renderer.AddMesh(std::move(leftPlane));
-    renderer.AddMesh(std::move(rightPlane));
-    renderer.AddMesh(std::move(plane));
-    renderer.AddMesh(std::move(back));
-    renderer.AddMesh(std::move(light));
-    renderer.AddMesh(std::move(bunny));
-    renderer.AddCurve(std::move(curve));
-    renderer.AddMesh(std::move(cube));
-
-    PathTracerWindow window(&renderer);
-
-    window.Run();
-}
+//static void Scene1() {
+//    PathTracer renderer;
+//
+//    Shader naiveDiffuseShader = renderer.CreateShader("__direct_callable__naive_diffuse");
+//    Shader naiveDielectrixShader = renderer.CreateShader("__direct_callable__naive_dielectrics");
+//    Shader naiveMetalShader = renderer.CreateShader("__direct_callable__naive_metal");
+//    Shader disneyPbrShader = renderer.CreateShader("__direct_callable__disney_pbr");
+//    Shader dispersionShader = renderer.CreateShader("__direct_callable__dispersion");
+//
+//    NaiveDiffuseData white, whiteLight, red, green, blue, lightyellow;
+//
+//    white.albedo = make_float3(0.8);
+//    red.albedo = make_float3(0.8f, 0.05f, 0.05f);
+//    green.albedo = make_float3(0.05f, 0.8f, 0.05f);
+//    blue.albedo = make_float3(0.05f, 0.05f, 0.8f);
+//    lightyellow.albedo = make_float3(0.3f, 0.3f, 0.1f);
+//
+//    NaiveMetalData metal;
+//
+//    metal.roughness = 0.f;
+//
+//    auto whiteMat = naiveDiffuseShader.CreateHostMaterial(white);
+//    auto whiteLightMat = naiveDiffuseShader.CreateHostMaterial(whiteLight);
+//    auto redMat = naiveDiffuseShader.CreateHostMaterial(red);
+//    auto greenMat = naiveDiffuseShader.CreateHostMaterial(green);
+//    auto blueMat = naiveDiffuseShader.CreateHostMaterial(blue);
+//    auto lightyellowMat = naiveDiffuseShader.CreateHostMaterial(lightyellow);
+//    auto mirrorMat = naiveMetalShader.CreateHostMaterial(metal);
+//    auto dispersionMat = dispersionShader.CreateHostMaterial(metal);
+//
+//    NaiveDielectricsData dielectrics;
+//    dielectrics.refractivity = 1.5f;
+//
+//    auto dielectricsMat = naiveDielectrixShader.CreateHostMaterial(dielectrics);
+//
+//
+//    DisneyPbrData pbrData;
+//    pbrData.baseColor = make_float3(0.2f, 0.2f, 0.8f);
+//    pbrData.roughness = 0.5f;
+//    pbrData.specular = 0.2f;
+//    pbrData.subsurface = 1.0f;
+//    pbrData.specularTint = 0.6f;
+//    pbrData.metallic = 0.5f;
+//
+//    auto roughPbr = disneyPbrShader.CreateHostMaterial(pbrData);
+//
+//    Mesh plane, leftPlane, rightPlane, light, back;
+//
+//    plane.AddCube(make_float3(0, -3, 0), make_float3(6, 0.1f, 6));
+//    plane.AddCube(make_float3(0, 3, 0), make_float3(3, 0.1f, 3));
+//    plane.material = whiteMat;
+//
+//    back.AddCube(make_float3(0, 0, 3), make_float3(3, 3, 0.1f));
+//    back.material = lightyellowMat;
+//
+//    leftPlane.AddCube(make_float3(-3, 0, 0), make_float3(0.1f, 3, 3));
+//    leftPlane.material = redMat;
+//
+//    rightPlane.AddCube(make_float3(3, 0, 0), make_float3(0.1f, 3, 3));
+//    rightPlane.material = greenMat;
+//
+//    light.AddCube(make_float3(0.f, 2.5f, 0.f), make_float3(1.f, 0.2f, 1.f));
+//    light.material = whiteLightMat;
+//
+//    Mesh cube;
+//    cube.AddCube(make_float3(0.8f, -1.8f, -1.5f), make_float3(0.5f, 0.5f, 0.5f));
+//    cube.Rotate(50, make_float3(0.f, 1.f, 0.f));
+//    cube.material = mirrorMat;
+//
+//    Curve curve;
+//
+//    curve.position = make_float3(-1.5f, -3.f, -1.f);
+//    curve.points = { make_float3(0.5f, 0.f, 0), make_float3(1.f, 0.5f, 0) , make_float3(0.5f, 1.f, 0), make_float3(0.25f, 1.5f, 0), make_float3(0.5f, 2.f, 0) };
+//    curve.theta = 0;
+//    curve.material = roughPbr;
+//
+//    Mesh bunny = Mesh::LoadObj("../models/bunny.obj")[0];
+//    bunny.material = dielectricsMat;
+//    bunny.Scale(make_float3(1.5f));
+//    bunny.Move(make_float3(0.5f, -1.f, -4));
+//
+//    renderer.AddMesh(std::move(leftPlane));
+//    renderer.AddMesh(std::move(rightPlane));
+//    renderer.AddMesh(std::move(plane));
+//    renderer.AddMesh(std::move(back));
+//    renderer.AddMesh(std::move(light));
+//    renderer.AddMesh(std::move(bunny));
+//    renderer.AddCurve(std::move(curve));
+//    renderer.AddMesh(std::move(cube));
+//
+//    PathTracerWindow window(&renderer);
+//
+//    window.Run();
+//}
 
 static void Scene2() {
     PathTracer renderer;
@@ -127,7 +127,7 @@ static void Scene2() {
     metal.roughness = 0.f;
 
     auto whiteMat = naiveDiffuseShader.CreateHostMaterial(white);
-    auto whiteLightMat = naiveDiffuseShader.CreateHostMaterial(whiteLight, make_float3(5, 5, 5));
+    auto whiteLightMat = naiveDiffuseShader.CreateHostMaterial(whiteLight, make_float3(8, 8, 4));
     auto lightyellowMat = naiveDiffuseShader.CreateHostMaterial(lightyellow);
     auto redMat = naiveDiffuseShader.CreateHostMaterial(red);
     auto greenMat = naiveDiffuseShader.CreateHostMaterial(green);
@@ -144,33 +144,35 @@ static void Scene2() {
 
     auto roughPbr = disneyPbrShader.CreateHostMaterial(pbrData);
 
-    Mesh plane, leftPlane, rightPlane, light, back;
+    auto plane = std::make_shared<Mesh>();
+    auto leftPlane = std::make_shared<Mesh>(), rightPlane = std::make_shared<Mesh>() , light = std::make_shared<Mesh>(), back = std::make_shared<Mesh>();
 
-    plane.AddCube(make_float3(0, -3, 0), make_float3(6, 0.1f, 6));
+    plane->AddCube(make_float3(0, -3, 0), make_float3(6, 0.1f, 6));
     // plane.AddCube(make_float3(0, 3, 0), make_float3(3, 0.1f, 3));
-    plane.material = whiteMat;
+    plane->material = whiteMat;
 
-    back.AddCube(make_float3(0, 0, 3), make_float3(3, 3, 0.1f));
-    back.material = lightyellowMat;
+    back->AddCube(make_float3(0, 0, 3), make_float3(3, 3, 0.1f));
+    back->material = lightyellowMat;
 
-    leftPlane.AddCube(make_float3(-3, 0, 0), make_float3(0.1f, 3, 3));
-    leftPlane.material = lightyellowMat;
+    leftPlane->AddCube(make_float3(-3, 0, 0), make_float3(0.1f, 3, 3));
+    leftPlane->material = redMat;
 
-    rightPlane.AddCube(make_float3(3, 0, 0), make_float3(0.1f, 3, 3));
-    rightPlane.material = lightyellowMat;
+    rightPlane->AddCube(make_float3(3, 0, 0), make_float3(0.1f, 3, 3));
+    rightPlane->material = greenMat;
 
-    light.AddCube(make_float3(0, 2.5, 0), make_float3(1.f, 0.2, 1.f));
-    light.material = whiteLightMat;
+    light->AddCube(make_float3(0, 2.5, 0), make_float3(1.f, 0.2, 1.f));
+    light->material = whiteLightMat;
+    light->isDirectLight = true;
 
-    Mesh bunny = Mesh::LoadObj("../models/bunny.obj")[0];
-    bunny.material = dispersionMat;
-    bunny.Scale(make_float3(1.5f));
-    bunny.Move(make_float3(1.5f, -2.5, -3));
+    auto bunny = Mesh::LoadObj("../models/bunny.obj")[0];
+    bunny->material = whiteMat;
+    bunny->Scale(make_float3(1.5f));
+    bunny->Move(make_float3(1.5f, -2.5, -3));
 
-    Sphere sphere;
-    sphere.position = make_float3(-1.f, -1.f, 1.f);
-    sphere.radius = 1.f;
-    sphere.material = roughPbr;
+    auto sphere = std::make_shared<Sphere>();
+    sphere->position = make_float3(-1.f, -1.f, 1.f);
+    sphere->radius = 1.f;
+    sphere->material = whiteMat;
 
     renderer.AddMesh(std::move(leftPlane));
     renderer.AddMesh(std::move(rightPlane));
@@ -184,94 +186,94 @@ static void Scene2() {
 
     window.Run();
 }
-
-static void Scene3() {
-    PathTracer renderer;
-
-    Shader naiveDiffuseShader = renderer.CreateShader("__direct_callable__naive_diffuse");
-    Shader naiveDielectrixShader = renderer.CreateShader("__direct_callable__naive_dielectrics");
-    Shader naiveMetalShader = renderer.CreateShader("__direct_callable__naive_metal");
-    Shader disneyPbrShader = renderer.CreateShader("__direct_callable__disney_pbr");
-    Shader dispersionShader = renderer.CreateShader("__direct_callable__dispersion");
-
-    NaiveDiffuseData white, whiteLight, red, green, blue, lightyellow;
-
-    NaiveDielectricsData dielectrics;
-    dielectrics.refractivity = 1.5f;
-
-    auto dielectricsMat = naiveDielectrixShader.CreateHostMaterial(dielectrics);
-
-    white.albedo = make_float3(0.8);
-    red.albedo = make_float3(0.8f, 0.05f, 0.05f);
-    green.albedo = make_float3(0.05f, 0.8f, 0.05f);
-    blue.albedo = make_float3(0.05f, 0.05f, 0.8f);
-    lightyellow.albedo = make_float3(0.3f, 0.3f, 0.1f);
-    white.albedo = make_float3(0.8);
-
-    NaiveMetalData metal;
-
-    metal.roughness = 0.f;
-
-    auto whiteMat = naiveDiffuseShader.CreateHostMaterial(white);
-    auto whiteLightMat = naiveDiffuseShader.CreateHostMaterial(whiteLight);
-    auto lightyellowMat = naiveDiffuseShader.CreateHostMaterial(lightyellow);
-    auto redMat = naiveDiffuseShader.CreateHostMaterial(red);
-    auto greenMat = naiveDiffuseShader.CreateHostMaterial(green);
-    auto dispersionMat = dispersionShader.CreateHostMaterial(metal);
-
-
-    DisneyPbrData pbrData;
-    pbrData.baseColor = make_float3(0.1f, 0.1f, 0.6f);
-    pbrData.roughness = 0.1f;
-    pbrData.specular = 0.3f;
-    pbrData.subsurface = 0.8f;
-    pbrData.specularTint = 0.3f;
-    pbrData.metallic = 1;
-
-    auto roughPbr = disneyPbrShader.CreateHostMaterial(pbrData);
-
-    Mesh plane, leftPlane, rightPlane, light, back;
-
-    plane.AddCube(make_float3(0, -3, 0), make_float3(3, 0.1f, 3));
-    plane.AddCube(make_float3(0, 3, 0), make_float3(3, 0.1f, 3));
-    plane.AddCube(make_float3(3, 0, 0), make_float3(0.01f, 3, 3));
-    plane.AddCube(make_float3(0, 0, 3), make_float3(3, 3, 0.1f));
-    plane.AddCube(make_float3(-3, -1, 0), make_float3(0.01f, 2.f, 3));
-
-    // rightPlane.AddCube(make_float3(-3, 1, 0), make_float3(0.1f, 2.f, 3));
-    rightPlane.AddCube(make_float3(-3, 3, 0), make_float3(0.01f, 1.8f, 3));
-    rightPlane.AddCube(make_float3(-3, 1.2f, 3), make_float3(0.01f, 2.f, 2.8f));
-    rightPlane.AddCube(make_float3(-3, 1.2f, -3), make_float3(0.01f, 2.f, 2.8f));
-
-    rightPlane.material = whiteMat;
-
-    // plane.AddCube(make_float3(0, 0, 0), make_float3(300, 300, 300));
-    plane.material = whiteMat;
-
-
-    light.AddCube(make_float3(-6, 2.8f, 0), make_float3(0.2f, 2.f, 2.f));
-    light.material = whiteLightMat;
-
-    Mesh bunny = Mesh::LoadObj("../models/bunny.obj")[0];
-    bunny.material = dispersionMat;
-    bunny.Scale(make_float3(1.5f));
-    bunny.Move(make_float3(1.5f, -2.5, -3));
-
-    Sphere sphere;
-    sphere.position = make_float3(-1.f, -1.f, 1.f);
-    sphere.radius = 1.f;
-    sphere.material = whiteMat;
-
-    renderer.AddMesh(std::move(plane));
-    renderer.AddMesh(std::move(light));
-    renderer.AddMesh(std::move(bunny));
-    renderer.AddSphere(std::move(sphere));
-    renderer.AddMesh(std::move(rightPlane));
-
-    PathTracerWindow window(&renderer);
-
-    window.Run();
-}
+//
+//static void Scene3() {
+//    PathTracer renderer;
+//
+//    Shader naiveDiffuseShader = renderer.CreateShader("__direct_callable__naive_diffuse");
+//    Shader naiveDielectrixShader = renderer.CreateShader("__direct_callable__naive_dielectrics");
+//    Shader naiveMetalShader = renderer.CreateShader("__direct_callable__naive_metal");
+//    Shader disneyPbrShader = renderer.CreateShader("__direct_callable__disney_pbr");
+//    Shader dispersionShader = renderer.CreateShader("__direct_callable__dispersion");
+//
+//    NaiveDiffuseData white, whiteLight, red, green, blue, lightyellow;
+//
+//    NaiveDielectricsData dielectrics;
+//    dielectrics.refractivity = 1.5f;
+//
+//    auto dielectricsMat = naiveDielectrixShader.CreateHostMaterial(dielectrics);
+//
+//    white.albedo = make_float3(0.8);
+//    red.albedo = make_float3(0.8f, 0.05f, 0.05f);
+//    green.albedo = make_float3(0.05f, 0.8f, 0.05f);
+//    blue.albedo = make_float3(0.05f, 0.05f, 0.8f);
+//    lightyellow.albedo = make_float3(0.3f, 0.3f, 0.1f);
+//    white.albedo = make_float3(0.8);
+//
+//    NaiveMetalData metal;
+//
+//    metal.roughness = 0.f;
+//
+//    auto whiteMat = naiveDiffuseShader.CreateHostMaterial(white);
+//    auto whiteLightMat = naiveDiffuseShader.CreateHostMaterial(whiteLight);
+//    auto lightyellowMat = naiveDiffuseShader.CreateHostMaterial(lightyellow);
+//    auto redMat = naiveDiffuseShader.CreateHostMaterial(red);
+//    auto greenMat = naiveDiffuseShader.CreateHostMaterial(green);
+//    auto dispersionMat = dispersionShader.CreateHostMaterial(metal);
+//
+//
+//    DisneyPbrData pbrData;
+//    pbrData.baseColor = make_float3(0.1f, 0.1f, 0.6f);
+//    pbrData.roughness = 0.1f;
+//    pbrData.specular = 0.3f;
+//    pbrData.subsurface = 0.8f;
+//    pbrData.specularTint = 0.3f;
+//    pbrData.metallic = 1;
+//
+//    auto roughPbr = disneyPbrShader.CreateHostMaterial(pbrData);
+//
+//    Mesh plane, leftPlane, rightPlane, light, back;
+//
+//    plane.AddCube(make_float3(0, -3, 0), make_float3(3, 0.1f, 3));
+//    plane.AddCube(make_float3(0, 3, 0), make_float3(3, 0.1f, 3));
+//    plane.AddCube(make_float3(3, 0, 0), make_float3(0.01f, 3, 3));
+//    plane.AddCube(make_float3(0, 0, 3), make_float3(3, 3, 0.1f));
+//    plane.AddCube(make_float3(-3, -1, 0), make_float3(0.01f, 2.f, 3));
+//
+//    // rightPlane.AddCube(make_float3(-3, 1, 0), make_float3(0.1f, 2.f, 3));
+//    rightPlane.AddCube(make_float3(-3, 3, 0), make_float3(0.01f, 1.8f, 3));
+//    rightPlane.AddCube(make_float3(-3, 1.2f, 3), make_float3(0.01f, 2.f, 2.8f));
+//    rightPlane.AddCube(make_float3(-3, 1.2f, -3), make_float3(0.01f, 2.f, 2.8f));
+//
+//    rightPlane.material = whiteMat;
+//
+//    // plane.AddCube(make_float3(0, 0, 0), make_float3(300, 300, 300));
+//    plane.material = whiteMat;
+//
+//
+//    light.AddCube(make_float3(-6, 2.8f, 0), make_float3(0.2f, 2.f, 2.f));
+//    light.material = whiteLightMat;
+//
+//    Mesh bunny = Mesh::LoadObj("../models/bunny.obj")[0];
+//    bunny.material = dispersionMat;
+//    bunny.Scale(make_float3(1.5f));
+//    bunny.Move(make_float3(1.5f, -2.5, -3));
+//
+//    Sphere sphere;
+//    sphere.position = make_float3(-1.f, -1.f, 1.f);
+//    sphere.radius = 1.f;
+//    sphere.material = whiteMat;
+//
+//    renderer.AddMesh(std::move(plane));
+//    renderer.AddMesh(std::move(light));
+//    renderer.AddMesh(std::move(bunny));
+//    renderer.AddSphere(std::move(sphere));
+//    renderer.AddMesh(std::move(rightPlane));
+//
+//    PathTracerWindow window(&renderer);
+//
+//    window.Run();
+//}
 
 extern "C" int main(int ac, char** av) {
     

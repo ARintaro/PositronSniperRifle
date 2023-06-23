@@ -7,6 +7,7 @@
 #include <map>
 #include <set>
 #include "tiny_obj_loader.h"
+#include <memory>
 
 
 struct HitgroupRecord;
@@ -17,16 +18,23 @@ public:
 	std::shared_ptr<HostMaterial> material;
 	uint32_t geometryFlags = OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT;
 
+	bool isDirectLight = false;
+
+	int directLightId = -1;
+
 	virtual void GetShaderBindingRecord(HitgroupRecord& record, const std::vector<OptixProgramGroup>& hitPrograms) = 0;
 
 	virtual void GetBuildInput(OptixBuildInput& input) = 0;
 
+	virtual OptixAabb GetAabb() {
+		throw std::runtime_error("Not Implemented Get Aabb");
+	}
 };
 
 class Mesh : public SceneObject {
 
 public:
-	static std::vector<Mesh> LoadObj(const std::string& fileName);
+	static std::vector<std::shared_ptr<Mesh>> LoadObj(const std::string& fileName);
 	
 	void AddCube(const float3& center, const float3& halfSize);
 
@@ -84,7 +92,7 @@ public:
 
 	virtual void GetShaderBindingRecord(HitgroupRecord& record, const std::vector<OptixProgramGroup>& hitPrograms) override;
 
-	OptixAabb GetAabb();
+	
 
 protected:
 	OptixAabb aabb;
@@ -104,5 +112,7 @@ protected:
 	void ZRotate(float3& vec);
 
 	void GetRange(float3& min_range, float3& max_range);
+
+	virtual OptixAabb GetAabb() override;
 };
 

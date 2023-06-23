@@ -25,7 +25,7 @@ struct PathState {
 struct TraceResult {
     int missed = 0;
 
-    int directLightId = 0;
+    int directLightId = -1;
     float distance;
     float3 position;
     float3 normal;
@@ -175,7 +175,6 @@ static __forceinline__ __device__ void SampleOnDirectLight(float3& result, PathS
     const float brdf = 1.f;
 
     TraceResult directLightTraceResult;
-    directLightTraceResult.directLightId = -1;
 
     for (int i = 0; i < renderParams.directLightCount; i++) {
         const DirectLightDescription& light = renderParams.deviceDirectLights[i];
