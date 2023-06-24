@@ -53,6 +53,8 @@ class PathTracer {
 public:
 	PathTracer();
 
+	RenderParams renderParams;
+
 	void Init();
 
 	void Render();
@@ -64,6 +66,8 @@ public:
 	void AddSphere(shared_ptr<Sphere> sphere);
 
 	void AddCurve(shared_ptr<Curve> curve);
+
+	void SetDirectLight(SceneObject& sceneObject);
 
 	Shader CreateShader(std::string name);
 
@@ -99,7 +103,7 @@ protected:
 	PathTracerCameraSetting curCameraSetting;
 
 	// Render Params
-	RenderParams renderParams;
+	
 	CudaBuffer renderParamsBuffer;
 
 	// Programs

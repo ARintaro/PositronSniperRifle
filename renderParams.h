@@ -85,7 +85,7 @@ struct DirectLightDescription {
 struct RenderParams {
 	int2 screenSize {512, 512};
 
-	int samplesPerLaunch = 64;
+	int samplesPerLaunch = 128;
 
 	float russianRouletteProbability = 0.9f;
 
@@ -95,7 +95,7 @@ struct RenderParams {
 	float globalFogDensity = 0.0f;
 	float3 globalFogAttenuation = make_float3(1, 1, 1);
 
-	int maxDepth = 4;
+	int maxDepth = 32;
 
 	int directLightCount = 0;
 	DirectLightDescription* deviceDirectLights;

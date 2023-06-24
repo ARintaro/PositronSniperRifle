@@ -38,6 +38,8 @@ public:
 	
 	void AddCube(const float3& center, const float3& halfSize);
 
+	void AddToplessCube(float3& center, const float3& halfSize);
+
 	void AddTriangle(const float3& a, const float3& b, const float3& c);
 
 	void AddPrism(const float3& center, const float halfsize, const float3& vertix);
@@ -53,6 +55,8 @@ public:
 	virtual void GetShaderBindingRecord(HitgroupRecord& record, const std::vector<OptixProgramGroup>& hitPrograms) override;
 
 	int AddVertex(tinyobj::attrib_t& attributes, const tinyobj::index_t& idx, std::map<tinyobj::index_t, int>& knownVertices);
+
+	virtual OptixAabb GetAabb() override;
 
 
 protected:

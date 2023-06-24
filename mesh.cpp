@@ -53,6 +53,25 @@ int Mesh::AddVertex(tinyobj::attrib_t& attributes, const tinyobj::index_t& idx, 
 	return newID;
 }
 
+OptixAabb Mesh::GetAabb() {
+	OptixAabb aabb;
+	aabb.minX = aabb.maxX = vertex[0].x;
+	aabb.minY = aabb.maxY = vertex[0].y;
+	aabb.minZ = aabb.maxZ = vertex[0].z;
+
+	for (auto& v : vertex) {
+		aabb.minX = std::min(aabb.minX, v.x);
+		aabb.maxX = std::max(aabb.maxX, v.x);
+
+		aabb.minY = std::min(aabb.minY, v.y);
+		aabb.maxY = std::max(aabb.maxY, v.y);
+
+		aabb.minZ = std::min(aabb.minZ, v.z);
+		aabb.maxZ = std::max(aabb.maxZ, v.z);
+	}
+	return aabb;
+}
+
 
 
 std::vector<shared_ptr<Mesh>> Mesh::LoadObj(const std::string& fileName) {
@@ -145,6 +164,34 @@ void Mesh::AddCube(const
 
 	index.push_back(firstVertexId + make_int3(1, 2, 6));
 	index.push_back(firstVertexId + make_int3(2, 4, 6));
+
+	index.push_back(firstVertexId + make_int3(0, 7, 3));
+	index.push_back(firstVertexId + make_int3(3, 7, 5));
+}
+
+void Mesh::AddToplessCube(float3& center, const float3& halfSize) {
+	int3 firstVertexId = make_int3((int)vertex.size());
+
+	vertex.push_back(center + make_float3(-1, -1, -1) * halfSize); // 0
+	vertex.push_back(center + make_float3(-1, 1, -1) * halfSize); // 1
+	vertex.push_back(center + make_float3(-1, 1, 1) * halfSize); // 2
+	vertex.push_back(center + make_float3(-1, -1, 1) * halfSize); // 3
+	vertex.push_back(center + make_float3(1, 1, 1) * halfSize); // 4
+	vertex.push_back(center + make_float3(1, -1, 1) * halfSize); // 5
+	vertex.push_back(center + make_float3(1, 1, -1) * halfSize); // 6
+	vertex.push_back(center + make_float3(1, -1, -1) * halfSize); // 7
+
+	index.push_back(firstVertexId + make_int3(0, 2, 1));
+	index.push_back(firstVertexId + make_int3(0, 3, 2));
+
+	index.push_back(firstVertexId + make_int3(2, 3, 5));
+	index.push_back(firstVertexId + make_int3(2, 5, 4));
+
+	index.push_back(firstVertexId + make_int3(4, 5, 6));
+	index.push_back(firstVertexId + make_int3(7, 6, 5));
+
+	index.push_back(firstVertexId + make_int3(0, 1, 6));
+	index.push_back(firstVertexId + make_int3(0, 6, 7));
 
 	index.push_back(firstVertexId + make_int3(0, 7, 3));
 	index.push_back(firstVertexId + make_int3(3, 7, 5));

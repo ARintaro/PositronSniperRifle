@@ -9,7 +9,7 @@
 
 
 static __forceinline__ __device__
-bool ApplyAirScatter(PathState& state, const TraceResult& traceResult) {
+bool ApplyAirScatter(float3& result, PathState& state, TraceResult& traceResult) {
     if (renderParams.globalFogDensity <= 0) return false;
 
     float scatterProbability = 1 - expf(-renderParams.globalFogDensity * traceResult.distance);
@@ -20,8 +20,16 @@ bool ApplyAirScatter(PathState& state, const TraceResult& traceResult) {
         // 发生散射
         float scateredDistance = -(1.f / renderParams.globalFogDensity) * logf(1 - sampledScatter);
 
-        state.rayOrigin = state.rayOrigin + scateredDistance * state.rayDir;
-        state.rayDir = RandomInUnitSphere(state.seed);
+        // 计算trace结果
+        traceResult.directLightId = -1;
+        traceResult.distance = scateredDistance;
+        traceResult.position = state.rayOrigin + scateredDistance * state.rayDir;
+        traceResult.normal = RandomInUnitSphere(state.seed);
+
+        SAMPLE_DIRECT_LIGHT(result, state, traceResult, renderParams.globalFogAttenuation / scatterProbability);
+
+        state.rayOrigin = traceResult.position;
+        state.rayDir = reflect(state.rayDir, traceResult.normal);
         state.attenuation *= renderParams.globalFogAttenuation / renderParams.russianRouletteProbability;
         return true;
     }
@@ -65,7 +73,7 @@ extern "C" __global__ void __raygen__renderFrame() {
 
             RayTrace(state.rayOrigin, state.rayDir, RADIANCE_RAY_TYPE, &traceResult);
 
-            if (ApplyAirScatter(state, traceResult)) continue;
+            if (ApplyAirScatter(result, state, traceResult)) continue;
 
             if (traceResult.missed) break;
   
@@ -106,7 +114,7 @@ extern "C" __global__ void __closesthit__mesh() {
     const int3 index = data.index[primID];
     float3 normal = make_float3(0);
 
-    if (data.normal) {
+    if (data.normal && false) {
         float2 bary = optixGetTriangleBarycentrics();
         normal = (1.f - bary.x - bary.y) * data.normal[index.x] + bary.x * data.normal[index.y] + bary.y * data.normal[index.z];
     } else {
@@ -130,7 +138,7 @@ extern "C" __global__ void __closesthit__mesh() {
     result.position = position;
     result.material = material;
     result.distance = optixGetRayTmax();
-    result.directLightId = -1;
+    result.directLightId = sbtData.directLightId;
 }
 
 

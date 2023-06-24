@@ -7,7 +7,11 @@ extern "C" __device__ void __direct_callable__naive_diffuse(float3& result, Path
     NaiveDiffuseData& data = *(NaiveDiffuseData*)traceResult.material.data;
     
     if (state.collectDirectLight || traceResult.directLightId == -1) {
-        result += traceResult.material.emission * state.attenuation* state.supposedColor* dot(-state.rayDir, traceResult.normal);
+        result += traceResult.material.emission * state.attenuation * state.supposedColor;
+    }
+
+    if (traceResult.directLightId == -1) {
+        SAMPLE_DIRECT_LIGHT(result, state, traceResult, data.albedo / MPI);
     }
 
     state.rayOrigin = traceResult.position;
@@ -37,7 +41,9 @@ extern "C" __device__ void __direct_callable__naive_dielectrics(float3 & result,
     float cosTheta = min(dot(-state.rayDir, traceResult.normal), 1.0f);
     float sinTheta = sqrtf(1.0f - cosTheta * cosTheta);
 
-    if (refractivity * sinTheta > 1.0f || SchlickFresnelFeflectance(cosTheta, refractivity) > rnd(state.seed)) {
+    state.collectDirectLight = true;
+
+    if (refractivity * sinTheta > 1.0f ) {
         state.rayDir = reflect(state.rayDir, traceResult.normal);
     }
     else {
@@ -50,6 +56,10 @@ extern "C" __device__ void __direct_callable__naive_dielectrics(float3 & result,
 extern "C" __device__ void __direct_callable__disney_pbr(float3 & result, PathState & state, TraceResult & traceResult) {
     DisneyPbrData& data = *(DisneyPbrData*)traceResult.material.data;
 
+    if (traceResult.directLightId == -1) {
+        SAMPLE_DIRECT_LIGHT(result, state, traceResult, DisneyBRDF(state.rayDir, traceResult.normal, sampleDir, data));
+    }
+
     const float3 beforeRaydir = state.rayDir;
 
     state.rayOrigin = traceResult.position;
@@ -58,13 +68,8 @@ extern "C" __device__ void __direct_callable__disney_pbr(float3 & result, PathSt
     const float pdf = 1 / (2 * MPI);
     const float cosine = dot(state.rayDir, traceResult.normal);
 
-    // Make a fake tanget
-    float3 tangentHelper = abs(traceResult.normal.x > 0.99) ? make_float3(0, 0, 1) : make_float3(1, 0, 0);
 
-    float3 bitangent = normalize(cross(traceResult.normal, tangentHelper));
-    float3 tangent = normalize(cross(traceResult.normal, bitangent));
-
-    state.attenuation *= cosine * DisneyBRDF(state.rayDir, traceResult.normal, -beforeRaydir, tangent, bitangent, data) / pdf / renderParams.russianRouletteProbability;
+    state.attenuation *= cosine * DisneyBRDF(state.rayDir, traceResult.normal, -beforeRaydir, data) / pdf / renderParams.russianRouletteProbability;
 }
 
 extern "C" __device__ void __direct_callable__dispersion(float3 & result, PathState & state, TraceResult & traceResult) {
@@ -86,6 +91,8 @@ extern "C" __device__ void __direct_callable__dispersion(float3 & result, PathSt
 
     float cosTheta = min(dot(-state.rayDir, traceResult.normal), 1.0f);
     float sinTheta = sqrtf(1.0f - cosTheta * cosTheta);
+
+    state.collectDirectLight = true;
 
     if (refractivity * sinTheta > 1.0f || SchlickFresnelFeflectance(cosTheta, refractivity) > rnd(state.seed)) {
         state.rayDir = reflect(state.rayDir, traceResult.normal);

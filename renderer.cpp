@@ -49,6 +49,9 @@ void PathTracer::Render() {
 	renderParams.frame.subframeCount++;
 	renderParams.frame.colorBuffer = outputBuffer->map();
 
+	renderParams.directLightCount = directLights.size();
+	renderParams.deviceDirectLights = (DirectLightDescription*)deviceDirectLights.GetDevicePointer();
+
 	renderParamsBuffer.Upload(&renderParams, 1);
 
 	CheckOptiXErrors(
@@ -92,6 +95,29 @@ void PathTracer::AddSphere(std::shared_ptr<Sphere> sphere) {
 void PathTracer::AddCurve(std::shared_ptr<Curve> curve) {
 	curves.emplace_back(std::move(curve));
 }
+
+
+void PathTracer::SetDirectLight(SceneObject& sceneObject) {
+	sceneObject.isDirectLight = true;
+	sceneObject.directLightId = directLights.size();
+
+	directLights.push_back({});
+
+	DirectLightDescription& desc = directLights.back();
+	desc.id = sceneObject.directLightId;
+	OptixAabb aabb = sceneObject.GetAabb();
+
+	desc.vertex[0] = make_float3(aabb.minX, aabb.minY, aabb.minZ);
+	desc.vertex[1] = make_float3(aabb.minX, aabb.minY, aabb.maxZ);
+	desc.vertex[2] = make_float3(aabb.minX, aabb.maxY, aabb.minZ);
+	desc.vertex[3] = make_float3(aabb.minX, aabb.maxY, aabb.maxZ);
+	desc.vertex[4] = make_float3(aabb.maxX, aabb.minY, aabb.minZ);
+	desc.vertex[5] = make_float3(aabb.maxX, aabb.minY, aabb.maxZ);
+	desc.vertex[6] = make_float3(aabb.maxX, aabb.maxY, aabb.minZ);
+	desc.vertex[7] = make_float3(aabb.maxX, aabb.maxY, aabb.maxZ);
+}
+
+
 Shader PathTracer::CreateShader(std::string name) {
 	shaders.push_back({});
 	Shader& shader = shaders.back();
@@ -280,6 +306,9 @@ void PathTracer::BuildAllAccel() {
 
 	// Build IAS
 	BuildInstanceAccel();
+
+	// Solve Direct Lights
+	deviceDirectLights.Upload(directLights);
 }
 
 void PathTracer::BuildInstanceAccel() {

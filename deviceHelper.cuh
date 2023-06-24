@@ -5,6 +5,7 @@
 #include <optix_device.h>
 #include "sutil\vec_math.h"
 #include <random.h>
+#include <cassert>
 
 extern "C" __constant__ RenderParams renderParams;
 
@@ -67,7 +68,7 @@ void RayTrace(float3 position, float3 rayDir, int rayType, TraceResult* result) 
         renderParams.traversable,
         position,
         rayDir,
-        0.001, 1e20f, 0,
+        0.001f, 1e20f, 0,
         OptixVisibilityMask(255),
         OPTIX_RAY_FLAG_DISABLE_ANYHIT,
         rayType,
@@ -133,69 +134,62 @@ static __forceinline__ __device__ float CalcRefractivityForColor(float3 refracti
     return color.x > 0.5f ? refractivity.x : (color.y > 0.5f ? refractivity.y : refractivity.z);
 }
 
-// (theta, phi)
 static __forceinline__ __device__ float2 GetSphericalCoord(float3 vecOnSphere) {
-    return make_float2(acosf(vecOnSphere.y), atanf(vecOnSphere.z / vecOnSphere.x));
+    return make_float2(acosf(vecOnSphere.y), atan2f(vecOnSphere.z, vecOnSphere.x) + MPI);
 }
 
 
-// (theta_min, phi_min, theta_max, phi_max)
-static __forceinline__ __device__ void GetScRange(const DirectLightDescription& light, const float3& position, const float3& normal, float2& scMin, float2& scMax, bool& existed) {
-    existed = false;
-    for (int i = 0; i < 8; i++) {
-        float3 dir = normalize(light.vertex[i] - position);
-        if (dot(dir, normal) < 0) continue;
 
-        float2 sc = GetSphericalCoord(dir);
+static __forceinline__ __device__ float3 SampleLightInQuadWithoutBrdf(unsigned int& seed, 
+                                const float3 p, const float3 normal, const float3 quadA, const float3 quadB, const float3 quadC, const float3 quadNormal, 
+                                TraceResult& traceResult, const int targetDirectLightId, float3& sampleDir) {
+    const float u = rnd(seed), v = rnd(seed);
+    const float3 base1 = quadB - quadA, base2 = quadC - quadA;
+    const float area = length(base1) * length(base2);
 
-        if (existed == false) {
-            scMin = scMax = sc;
-        } else {
-            scMin = min(scMin, sc);
-            scMax = max(scMax, sc);
-        }
+    float3 sample = quadA + u * base1 + v * base2;
+    sampleDir = normalize(sample - p);
 
-        existed = true;
+    if (dot(sampleDir, normal) < 0 || dot(quadNormal, -sampleDir) < 0) {
+        return make_float3(0);
     }
+
+    traceResult.directLightId = -1;
+    RayTrace(p, sampleDir, RADIANCE_RAY_TYPE, &traceResult);
+
+    if (traceResult.directLightId == targetDirectLightId && dot(traceResult.normal, quadNormal) > 0.99f && traceResult.missed == false) {
+        return traceResult.material.emission * dot(normal, sampleDir) * dot(quadNormal, -sampleDir) / sqrtf(dot(sample - p, sample - p)) * area;
+    }
+    return make_float3(0);
 }
 
-// (theta, phi, pdf)
-static __forceinline__ __device__ float3 SampleOnScRange(unsigned int& seed, float2 scMin, float2 scMax) {
-    float theta = (scMax.x - scMin.x) * rnd(seed) + scMin.x;
-    float phi = (scMax.y - scMin.y) * rnd(seed) + scMin.y;
-    float pdf = (scMax.x - scMin.x) * (scMax.y - scMin.y);
-    
-    return make_float3(theta, phi, pdf);
-}
+#define SAMPLE_QUAD(v1, v2, v3, quadNormal, extraAttenuation) \
+                ret = SampleLightInQuadWithoutBrdf(state.seed, traceResult.position, traceResult.normal, light.vertex[(v1)], light.vertex[(v2)], light.vertex[(v3)], (quadNormal), directLightTraceResult, i, sampleDir); \
+                result += ret * extraAttenuation * state.attenuation  
+
+#define SAMPLE_DIRECT_LIGHT(result, state, traceResult, brdf) \
+    {\
+        SampleOnDirectLight(result, state, traceResult); \
+        state.collectDirectLight = false; \
+        \
+        TraceResult directLightTraceResult;\
+        \
+        for (int i = 0; i < renderParams.directLightCount; i++) {\
+            const DirectLightDescription& light = renderParams.deviceDirectLights[i]; \
+            \
+            float3 sampleDir; \
+            float3 ret; \
+            \
+            SAMPLE_QUAD(0, 2, 4, make_float3(0, 0, -1), brdf); \
+            SAMPLE_QUAD(0, 1, 2, make_float3(-1, 0, 0), brdf); \
+            SAMPLE_QUAD(0, 1, 4, make_float3(0, -1, 0), brdf); \
+            SAMPLE_QUAD(4, 5, 6, make_float3(1, 0, 0), brdf); \
+            SAMPLE_QUAD(2, 3, 6, make_float3(0, 1, 0), brdf); \
+            SAMPLE_QUAD(1, 3, 5, make_float3(0, 0, 1), brdf); \
+            \
+        }\
+    }\
 
 static __forceinline__ __device__ void SampleOnDirectLight(float3& result, PathState& state, TraceResult& traceResult) {
-    state.collectDirectLight = false;
-
-    // TODO
-    const float brdf = 1.f;
-
-    TraceResult directLightTraceResult;
-
-    for (int i = 0; i < renderParams.directLightCount; i++) {
-        const DirectLightDescription& light = renderParams.deviceDirectLights[i];
-        
-        bool existed;
-        float2 scMin, scMax;
-        GetScRange(light, traceResult.position, traceResult.normal, scMin, scMax, existed);
-
-        if (existed == false) continue;
-
-        // TODO ¾ùÔÈ²ÉÑù
-        float3 sample = SampleOnScRange(state.seed, scMin, scMax);
-
-        float sinTheta = sinf(sample.x);
-
-        float3 dir = make_float3(sinTheta * cosf(sample.y), cosf(sample.x), sinTheta * sinf(sample.y));
-
-        RayTrace(traceResult.position, dir, RADIANCE_RAY_TYPE, &directLightTraceResult);
-
-        if (directLightTraceResult.directLightId == i) {
-            result += directLightTraceResult.material.emission * state.attenuation * state.supposedColor * dot(directLightTraceResult.normal, -dir) * brdf;;
-        }
-    }
+    
 }
