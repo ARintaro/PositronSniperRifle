@@ -30,6 +30,7 @@ struct TraceResult {
     float distance;
     float3 position;
     float3 normal;
+    float2 texcoord;
     bool outer;
 
     Material material;

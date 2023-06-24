@@ -75,7 +75,6 @@ OptixAabb Mesh::GetAabb() {
 
 
 std::vector<shared_ptr<Mesh>> Mesh::LoadObj(const std::string& fileName) {
-	
 	const std::string mtlDir = fileName.substr(0, fileName.rfind('/'));
 
 	tinyobj::attrib_t attributes;
@@ -122,8 +121,6 @@ std::vector<shared_ptr<Mesh>> Mesh::LoadObj(const std::string& fileName) {
 					mesh->AddVertex(attributes, idx1, knownVertices),
 					mesh->AddVertex(attributes, idx2, knownVertices));
 				mesh->index.push_back(idx);
-				// mesh->diffuse = (const vec3f&)materials[materialID].diffuse;
-				// mesh->diffuse = gdt::randomColor(materialID);
 			}
 
 			if (!mesh->vertex.empty()) {
@@ -136,6 +133,103 @@ std::vector<shared_ptr<Mesh>> Mesh::LoadObj(const std::string& fileName) {
 	std::cout << "created a total of " << meshes.size() << " meshes" << std::endl;
 	return meshes;
 }
+
+std::vector<std::shared_ptr<Mesh>> Mesh::LoadObjPBR(const std::string& fileName, const Shader& pbrShader, const DisneyPbrData& dataTemplate) {
+	const std::string mtlDir = fileName.substr(0, fileName.rfind('/'));
+
+	tinyobj::attrib_t attributes;
+	std::vector<tinyobj::shape_t> shapes;
+	std::vector<tinyobj::material_t> materials;
+	std::vector<shared_ptr<HostMaterial>> hostMaterials;
+	std::string err = "";
+
+	bool readOK = tinyobj::LoadObj(&attributes, &shapes, &materials, &err, &err, fileName.data(), mtlDir.data());
+	if (!readOK) {
+		throw std::runtime_error("Could not read OBJ model from " + fileName + ":" + mtlDir + " : " + err);
+	}
+
+	cudaTextureDesc texDesc = {};
+	texDesc.addressMode[0] = cudaAddressModeWrap;
+	texDesc.addressMode[1] = cudaAddressModeWrap;
+	texDesc.filterMode = cudaFilterModeLinear;
+	texDesc.readMode = cudaReadModeNormalizedFloat;
+	
+	texDesc.normalizedCoords = 1;
+	texDesc.maxAnisotropy = 1;
+	texDesc.maxMipmapLevelClamp = 99;
+	texDesc.minMipmapLevelClamp = 0;
+	texDesc.mipmapFilterMode = cudaFilterModePoint;
+	texDesc.borderColor[0] = 1.0f;
+	texDesc.sRGB = true;
+
+	hostMaterials.resize(materials.size());
+
+	for (int i = 0; i < materials.size(); i++) {
+		const tinyobj::material_t& mat = materials[i];
+		auto data = dataTemplate;
+
+		if (!mat.diffuse_texname.empty()) {
+			// TODO : Memory Manage
+			texDesc.sRGB = true;
+			auto texture = sutil::loadTexture(mat.diffuse_texname.c_str(), make_float3(1), &texDesc);
+			data.baseColorTexture = texture.texture;
+		}
+
+		if (!mat.roughness_texname.empty()) {
+			// TODO : Memory Manage
+			texDesc.sRGB = false;
+			auto texture = sutil::loadTexture(mat.roughness_texname.c_str(), make_float3(1), &texDesc);
+			data.roughnessTexture = texture.texture;
+		}
+
+		if (!mat.metallic_texname.empty()) {
+			// TODO : Memory Manage
+			texDesc.sRGB = false;
+			auto texture = sutil::loadTexture(mat.metallic_texname.c_str(), make_float3(1), &texDesc);
+			data.metallicTexture = texture.texture;
+		}
+
+		hostMaterials[i] = pbrShader.CreateHostMaterial<DisneyPbrData>(data);
+	}
+
+	vector<shared_ptr<Mesh>> meshes;
+
+	std::cout << "Done loading obj file - found " << shapes.size() << " shapes with " << materials.size() << " materials" << std::endl;
+	for (int shapeID = 0; shapeID < (int)shapes.size(); shapeID++) {
+		tinyobj::shape_t& shape = shapes[shapeID];
+
+		std::set<int> materialIDs;
+		for (auto faceMatID : shape.mesh.material_ids)
+			materialIDs.insert(faceMatID);
+
+		for (int materialID : materialIDs) {
+			std::map<tinyobj::index_t, int> knownVertices;
+			auto mesh = std::make_shared<Mesh>();
+
+			for (int faceID = 0; faceID < shape.mesh.material_ids.size(); faceID++) {
+				if (shape.mesh.material_ids[faceID] != materialID) continue;
+				tinyobj::index_t idx0 = shape.mesh.indices[3 * faceID + 0];
+				tinyobj::index_t idx1 = shape.mesh.indices[3 * faceID + 1];
+				tinyobj::index_t idx2 = shape.mesh.indices[3 * faceID + 2];
+
+				int3 idx = make_int3(mesh->AddVertex(attributes, idx0, knownVertices),
+					mesh->AddVertex(attributes, idx1, knownVertices),
+					mesh->AddVertex(attributes, idx2, knownVertices));
+				mesh->index.push_back(idx);
+			}
+
+			if (!mesh->vertex.empty()) {
+				mesh->material = hostMaterials[materialID];
+				meshes.push_back(std::move(mesh));
+			}
+
+		}
+	}
+
+	std::cout << "created a total of " << meshes.size() << " meshes" << std::endl;
+	return meshes;
+}
+
 
 void Mesh::AddCube(const
 	float3 & center, const float3& halfSize) {
@@ -254,6 +348,9 @@ void Mesh::GetBuildInput(OptixBuildInput& input) {
 	if (normal.size() > 0) {
 		deviceNormal.Upload(normal);
 	}
+	if (texcoord.size() > 0) {
+		deviceTexcoord.Upload(texcoord);
+	}
 
 	input = {};
 	input.type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
@@ -285,6 +382,7 @@ void Mesh::GetShaderBindingRecord(HitgroupRecord& record, const std::vector<Opti
 	data.vertex = (float3*)deviceVertex.GetDevicePointer();
 	data.index = (int3*)deviceIndex.GetDevicePointer();
 	data.normal = normal.size() > 0 ? (float3*)deviceNormal.GetDevicePointer() : nullptr;
+	data.texcoord = texcoord.size() > 0 ? (float2*)deviceTexcoord.GetDevicePointer() : nullptr;
 	record.data.directLightId = directLightId;
 	record.data.material = material->CreateMaterial();
 }

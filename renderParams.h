@@ -17,15 +17,21 @@ struct DisneyPbrData {
 	float3 baseColor = make_float3(1, 1, 1);
 	float roughness = 1;
 	float metallic = 0; 
+
 	float specular = 0;
 	float specularTint = 0;
-
 	float sheenTint = 0;
 	float anisotropic = 0;
 	float sheen = 0;
 	float clearcoatGloss = 0;
 	float subsurface = 0;
 	float clearcoat = 0;
+
+	cudaTextureObject_t baseColorTexture = 0;
+	cudaTextureObject_t normalTexture = 0;
+	cudaTextureObject_t metallicTexture = 0;  
+	cudaTextureObject_t roughnessTexture = 0;
+	cudaTextureObject_t emissiveTexture = 0;
 };
 
 struct NaiveDiffuseData {
@@ -49,6 +55,7 @@ struct Material {
 struct DeviceMeshData {
 	float3* vertex;
 	float3* normal;
+	float2* texcoord;
 	int3* index;
 };
 
@@ -87,7 +94,7 @@ struct RenderParams {
 
 	int samplesPerLaunch = 128;
 
-	float russianRouletteProbability = 0.9f;
+	float russianRouletteProbability = 0.8f;
 
 	float3 skyLightDirection = make_float3(0, -1, 1);
 	float3 skyLightColor = make_float3(1.f, 1.f, 1.f);
@@ -95,7 +102,7 @@ struct RenderParams {
 	float globalFogDensity = 0.0f;
 	float3 globalFogAttenuation = make_float3(1, 1, 1);
 
-	int maxDepth = 32;
+	int maxDepth = 8;
 
 	int directLightCount = 0;
 	DirectLightDescription* deviceDirectLights;

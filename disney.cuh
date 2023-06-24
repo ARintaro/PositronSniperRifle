@@ -54,7 +54,7 @@ static __forceinline__ __device__ float SmithGggxAniso(float NdotV, float VdotX,
 
 static __forceinline__ __device__
 float3 DisneyBRDF(const float3& V, const float3& N, const float3& L,
-                  const DisneyPbrData& data) {
+                  const DisneyPbrData& data, const TraceResult& traceResult) {
     float NdotL = dot(N, L);
     float NdotV = dot(N, V);
     if (NdotL < 0 || NdotV < 0) return make_float3(0);
@@ -69,6 +69,9 @@ float3 DisneyBRDF(const float3& V, const float3& N, const float3& L,
     float LdotH = dot(L, H);
 
     float3 Cdlin = data.baseColor;
+    
+    
+
     // luminance approx.
     float Cdlum = 0.3f * Cdlin.x + 0.6f * Cdlin.y + 0.1f * Cdlin.z; 
 

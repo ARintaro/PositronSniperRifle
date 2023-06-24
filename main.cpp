@@ -319,7 +319,7 @@ static void Scene4() {
     metal.roughness = 0.5f;
 
     auto whiteMat = naiveDiffuseShader.CreateHostMaterial(white);
-    auto whiteLightMat = naiveDiffuseShader.CreateHostMaterial(whiteLight, make_float3(1, 1, 0.8));
+    auto whiteLightMat = naiveDiffuseShader.CreateHostMaterial(whiteLight, make_float3(1, 1, 0.8) * 30);
     auto lightyellowMat = naiveDiffuseShader.CreateHostMaterial(lightyellow);
     auto redMat = naiveDiffuseShader.CreateHostMaterial(red);
     auto greenMat = naiveDiffuseShader.CreateHostMaterial(green);
@@ -353,7 +353,7 @@ static void Scene4() {
     plane->material = whiteMat;
 
 
-    light->AddCube(make_float3(0, 2, 0), make_float3(1.f, 0.2, 1.f));
+    light->AddCube(make_float3(0, 2, 0), make_float3(0.1f, 0.1, 0.1f));
     light->material = whiteLightMat;
 
     auto water = Mesh::LoadObj("../models/water.obj")[0];
@@ -362,6 +362,7 @@ static void Scene4() {
     water->Move(make_float3(-3.5f, -3.f, -3.f));
     water->AddToplessCube(make_float3(0.f, -2.f, 0.f), make_float3(3.f, 1.5f, 3.f));
 
+    
     
 
     // water->Scale(make_float3(0.5f));
@@ -385,11 +386,95 @@ static void Scene4() {
 
 }
 
+static void Scene5() {
+    PathTracer renderer;
+
+    Shader naiveDiffuseShader = renderer.CreateShader("__direct_callable__naive_diffuse");
+    Shader naiveDielectrixShader = renderer.CreateShader("__direct_callable__naive_dielectrics");
+    Shader naiveMetalShader = renderer.CreateShader("__direct_callable__naive_metal");
+    Shader disneyPbrShader = renderer.CreateShader("__direct_callable__disney_pbr");
+    Shader dispersionShader = renderer.CreateShader("__direct_callable__dispersion");
+
+    NaiveDiffuseData white, whiteLight, red, green, blue, lightyellow;
+
+    NaiveDielectricsData dielectrics;
+    dielectrics.refractivity = 2.f;
+
+    auto dielectricsMat = naiveDielectrixShader.CreateHostMaterial(dielectrics);
+
+    white.albedo = make_float3(0.5);
+    red.albedo = make_float3(0.8f, 0.05f, 0.05f);
+    green.albedo = make_float3(0.05f, 0.8f, 0.05f);
+    blue.albedo = make_float3(0.05f, 0.05f, 0.8f);
+    lightyellow.albedo = make_float3(0.3f, 0.3f, 0.1f);
+    white.albedo = make_float3(0.8);
+
+    NaiveMetalData metal;
+
+    metal.roughness = 0.5f;
+
+    auto whiteMat = naiveDiffuseShader.CreateHostMaterial(white);
+    
+    auto lightyellowMat = naiveDiffuseShader.CreateHostMaterial(lightyellow);
+    auto redMat = naiveDiffuseShader.CreateHostMaterial(red);
+    auto greenMat = naiveDiffuseShader.CreateHostMaterial(green);
+    auto dispersionMat = dispersionShader.CreateHostMaterial(metal);
+    auto mirrorMat = naiveDielectrixShader.CreateHostMaterial(metal);
+
+
+    DisneyPbrData pbrData;
+    pbrData.specular = 0.8f;
+    pbrData.clearcoat = 0.6f;
+    pbrData.clearcoatGloss = 1.f;
+    pbrData.specularTint = 0.5f;
+    pbrData.anisotropic = 0.2f;
+
+    auto roughPbr = disneyPbrShader.CreateHostMaterial(pbrData);
+
+    auto whiteLightMat = naiveDiffuseShader.CreateHostMaterial(whiteLight, make_float3(1, 1, 0.8));
+    auto redLightMat = naiveDiffuseShader.CreateHostMaterial(whiteLight, make_float3(1, 0.5, 0.5));
+    auto blueLightMat = naiveDiffuseShader.CreateHostMaterial(whiteLight, make_float3(0.5, 0.5, 1));
+
+    auto light = std::make_shared<Mesh>(), redLight = std::make_shared<Mesh>(), blueLight = std::make_shared<Mesh>(), plane = std::make_shared<Mesh>();
+
+    plane->AddCube(make_float3(0, -2, 0), make_float3(500, 5, 500));
+    plane->material = whiteMat;
+
+    light->AddCube(make_float3(0, 200, 0), make_float3(10, 10, 10));
+    light->material = whiteLightMat;
+
+    redLight->AddCube(make_float3(-100, 50, 0), make_float3(10, 10, 10));
+    redLight->material = redLightMat;
+
+    blueLight->AddCube(make_float3(100, 50, 0), make_float3(10, 10, 10));
+    blueLight->material = blueLightMat;
+
+    auto robot = Mesh::LoadObjPBR("../models/robot.obj", disneyPbrShader, pbrData);
+    for (auto& mesh : robot) {
+        renderer.AddMesh(mesh);
+    }
+
+    renderer.SetDirectLight(*light);
+    renderer.SetDirectLight(*redLight);
+    renderer.SetDirectLight(*blueLight);
+
+    renderer.AddMesh(std::move(light));
+    renderer.AddMesh(std::move(redLight));
+    renderer.AddMesh(std::move(blueLight));
+    renderer.AddMesh(std::move(plane));
+
+
+    PathTracerWindow window(&renderer);
+
+    window.Run();
+
+}
+
 extern "C" int main(int ac, char** av) {
     
     try {
         InitCudaAndOptix();
-        Scene4();
+        Scene5();
     }
     catch (std::runtime_error& e) {
         std::cerr << e.what() << std::endl;

@@ -26,12 +26,6 @@ struct HostMaterial {
 		return material;
 	}
 
-	~HostMaterial() {
-		if (data) {
-			data->Free();
-		}
-	}
-
 };
 
 struct Shader {
@@ -40,7 +34,7 @@ struct Shader {
 	OptixProgramGroup program = nullptr;
 
 	template<typename DataType>
-	std::shared_ptr<HostMaterial> CreateHostMaterial(DataType _data, float3 emission = make_float3(0)) {
+	std::shared_ptr<HostMaterial> CreateHostMaterial(DataType _data, float3 emission = make_float3(0)) const {
 		return std::make_shared<HostMaterial>(_data, programIndex, emission);
 	}
 };

@@ -35,6 +35,8 @@ class Mesh : public SceneObject {
 
 public:
 	static std::vector<std::shared_ptr<Mesh>> LoadObj(const std::string& fileName);
+
+	static std::vector<std::shared_ptr<Mesh>> LoadObjPBR(const std::string& fileName, const Shader& pbrShader, const DisneyPbrData& dataTemplate);
 	
 	void AddCube(const float3& center, const float3& halfSize);
 
@@ -68,6 +70,7 @@ protected:
 	CudaBuffer deviceVertex;
 	CudaBuffer deviceIndex;
 	CudaBuffer deviceNormal;
+	CudaBuffer deviceTexcoord;
 };
 
 class Sphere : public SceneObject {
@@ -118,5 +121,11 @@ protected:
 	void GetRange(float3& min_range, float3& max_range);
 
 	virtual OptixAabb GetAabb() override;
+};
+
+class Texture {
+public:
+	std::unique_ptr<uint32_t[]> pixels;
+	int2 resolution;
 };
 

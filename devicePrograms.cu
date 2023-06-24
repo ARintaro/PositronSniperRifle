@@ -113,9 +113,10 @@ extern "C" __global__ void __closesthit__mesh() {
     const int primID = optixGetPrimitiveIndex();
     const int3 index = data.index[primID];
     float3 normal = make_float3(0);
+    float2 bary = optixGetTriangleBarycentrics();
+    float2 texcoord = make_float2(0);
 
-    if (data.normal && false) {
-        float2 bary = optixGetTriangleBarycentrics();
+    if (data.normal) {
         normal = (1.f - bary.x - bary.y) * data.normal[index.x] + bary.x * data.normal[index.y] + bary.y * data.normal[index.z];
     } else {
         const float3& A = data.vertex[index.x];
@@ -124,8 +125,11 @@ extern "C" __global__ void __closesthit__mesh() {
         normal = normalize(cross(B - A, C - A));
     }
 
-    const float3 position = optixGetWorldRayOrigin() + optixGetRayTmax() * optixGetWorldRayDirection();
+    if (data.texcoord) {
+        texcoord = (1.f - bary.x - bary.y) * data.texcoord[index.x] + bary.x * data.texcoord[index.y] + bary.y * data.texcoord[index.z];
+    }
 
+    const float3 position = optixGetWorldRayOrigin() + optixGetRayTmax() * optixGetWorldRayDirection();
     const float3 rayDir = optixGetWorldRayDirection();
 
     if (dot(rayDir, normal) > 0) {
@@ -139,6 +143,7 @@ extern "C" __global__ void __closesthit__mesh() {
     result.material = material;
     result.distance = optixGetRayTmax();
     result.directLightId = sbtData.directLightId;
+    result.texcoord = texcoord;
 }
 
 
@@ -165,5 +170,6 @@ extern "C" __global__ void __closesthit__sphere() {
     result.material = material;    
     result.distance = optixGetRayTmax();
     result.directLightId = -1;
+    // TODO : Texcoord for sphere
 }
 
