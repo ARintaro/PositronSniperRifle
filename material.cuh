@@ -44,6 +44,7 @@ extern "C" __device__ void __direct_callable__naive_dielectrics(float3 & result,
     float cosTheta = min(dot(-state.rayDir, traceResult.normal), 1.0f);
     float sinTheta = sqrtf(1.0f - cosTheta * cosTheta);
 
+    
     state.collectDirectLight = true;
 
     if (refractivity * sinTheta > 1.0f || SchlickFresnelFeflectance(cosTheta, refractivity) > rnd(state.seed)) {
@@ -69,6 +70,14 @@ extern "C" __device__ void __direct_callable__disney_pbr(float3 & result, PathSt
 
     if (data.metallicTexture) {
         data.metallic = tex2D<float4>(data.metallicTexture, traceResult.texcoord.x, traceResult.texcoord.y).x;
+    }
+
+    if (data.normalTexture) {
+        float3 normalTangentSpace = make_float3(tex2D<float4>(data.normalTexture, traceResult.texcoord.x, traceResult.texcoord.y));
+        normalTangentSpace.x = 2 * normalTangentSpace.x - 1;
+        normalTangentSpace.y = 2 * normalTangentSpace.y - 1;
+        float3 bitangent = cross(traceResult.normal, traceResult.tangent);
+        traceResult.normal = normalTangentSpace.x * traceResult.tangent + normalTangentSpace.y * bitangent + normalTangentSpace.z * traceResult.normal;
     }
 
     if (traceResult.directLightId == -1) {

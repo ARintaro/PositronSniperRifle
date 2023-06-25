@@ -189,6 +189,13 @@ std::vector<std::shared_ptr<Mesh>> Mesh::LoadObjPBR(const std::string& fileName,
 			data.metallicTexture = texture.texture;
 		}
 
+		if (!mat.normal_texname.empty()) {
+			// TODO : Memory Manage
+			texDesc.sRGB = false;
+			auto texture = sutil::loadTexture(mat.normal_texname.c_str(), make_float3(1), &texDesc);
+			data.normalTexture = texture.texture;
+		}
+
 		hostMaterials[i] = pbrShader.CreateHostMaterial<DisneyPbrData>(data);
 	}
 
