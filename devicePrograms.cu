@@ -54,6 +54,7 @@ extern "C" __global__ void __raygen__renderFrame() {
 
         float2 unitDisk = camera.lenRadius * RandomInUnitDisk(seed);
 
+
         PathState state;
         state.seed = seed;
         state.rayOrigin = camera.position + unitDisk.x * normalize(camera.horizontal) + unitDisk.y * normalize(camera.vertical);
@@ -184,6 +185,6 @@ extern "C" __global__ void __closesthit__sphere() {
     result.directLightId = -1;
     // TODO : texcrood
 
-    // TODO : tangent and bitangent
+    // TODO : tangent
 }
 

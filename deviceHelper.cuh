@@ -166,8 +166,11 @@ static __forceinline__ __device__ float3 SampleLightInQuadWithoutBrdf(unsigned i
 }
 
 #define SAMPLE_QUAD(v1, v2, v3, quadNormal, extraAttenuation) \
+                { \
                 ret = SampleLightInQuadWithoutBrdf(state.seed, traceResult.position, traceResult.normal, light.vertex[(v1)], light.vertex[(v2)], light.vertex[(v3)], (quadNormal), directLightTraceResult, i, sampleDir); \
-                result += ret * extraAttenuation * state.attenuation  
+                float3 delta = ret * extraAttenuation * state.attenuation; \
+                result += dot(delta, delta) < renderParams.maxResultDeltaSqr ? delta : make_float3(0); \
+                }
 
 #define SAMPLE_DIRECT_LIGHT(result, state, traceResult, brdf) \
     {\

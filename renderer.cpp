@@ -81,7 +81,7 @@ void PathTracer::Resize(const int2& newSize) {
 
 	renderParams.screenSize = newSize;
 
-	SetCamera(curCameraSetting);
+	SetCamera(cameraSetting);
 }
 
 void PathTracer::AddMesh(std::shared_ptr<Mesh> mesh) {
@@ -129,19 +129,18 @@ Shader PathTracer::CreateShader(std::string name) {
 void PathTracer::SetCamera(const PathTracerCameraSetting& cameraSetting) {
 	renderParams.frame.subframeCount = 0;
 
-	curCameraSetting = cameraSetting;
+	this->cameraSetting = cameraSetting;
 
 	renderParams.camera.position = cameraSetting.position;
-
-	renderParams.camera.direction = cameraSetting.focusDist * normalize(cameraSetting.lookAt - cameraSetting.position);
+	renderParams.camera.direction = renderParams.focusDist * normalize(cameraSetting.lookAt - cameraSetting.position);
 
 	const float tanFov = 2 * tan(cameraSetting.fov / 2 * M_PI / 180);
 
 	const float aspect = (float)renderParams.screenSize.x / renderParams.screenSize.y;
 
-	renderParams.camera.horizontal = cameraSetting.focusDist * tanFov * aspect * normalize(cross(renderParams.camera.direction, cameraSetting.up));
-	renderParams.camera.vertical = cameraSetting.focusDist * tanFov * normalize(cross(renderParams.camera.direction, renderParams.camera.horizontal));
-	renderParams.camera.lenRadius = cameraSetting.aperture / 2;
+	renderParams.camera.horizontal = renderParams.focusDist * tanFov * aspect * normalize(cross(renderParams.camera.direction, cameraSetting.up));
+	renderParams.camera.vertical = renderParams.focusDist * tanFov * normalize(cross(renderParams.camera.direction, renderParams.camera.horizontal));
+	renderParams.camera.lenRadius = renderParams.aperture / 2;
 }
 
 int2 PathTracer::GetScreenSize() {
@@ -206,7 +205,7 @@ void PathTracer::CreateOptixModule() {
 
 	// Important, Payload and AttributeNum
 	optixPipelineCompileOptions.numPayloadValues = 2;
-	optixPipelineCompileOptions.numAttributeValues = 3;
+	optixPipelineCompileOptions.numAttributeValues = 5;
 	
 	// Enables debug exceptions during optix launches. This may incur significant performance cost and should only be done during development.
 #ifdef _DEBUG 

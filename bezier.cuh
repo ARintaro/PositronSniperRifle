@@ -139,6 +139,13 @@ extern "C" __global__ void __closesthit__curve() {
         __int_as_float(optixGetAttribute_1()),
         __int_as_float(optixGetAttribute_2())
     );
+    const float2 curve_coord = make_float2(
+        __int_as_float(optixGetAttribute_3()),
+        __int_as_float(optixGetAttribute_4())
+    );
+
+    float u = abs(curve_coord.x / (2 * MPI)) < 1 ? abs(curve_coord.x / (2 * MPI)) : 1;
+    float v = abs(v) < 1 ? abs(v) : 1;
 
 
 
@@ -147,6 +154,8 @@ extern "C" __global__ void __closesthit__curve() {
     result.position = position;
     result.material = material;
     result.distance = optixGetRayTmax();
+    result.texcoord = make_float2(u, v);
+    // result.tangent;
 }
 
 extern "C" __global__ void __intersection__curve() {
@@ -211,6 +220,6 @@ extern "C" __global__ void __intersection__curve() {
         norm = -norm;
     }
 
-    optixReportIntersection(intersect_uvt.z, 0, __float_as_int(norm.x), __float_as_int(norm.y), __float_as_int(norm.z));
+    optixReportIntersection(intersect_uvt.z, 0, __float_as_int(norm.x), __float_as_int(norm.y), __float_as_int(norm.z), __float_as_int(intersect_uvt.x), __float_as_int(intersect_uvt.y));
 }
 

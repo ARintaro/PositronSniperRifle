@@ -37,8 +37,6 @@ struct PathTracerCameraSetting {
 	float3 lookAt;
 	float3 up;
 	float fov;
-	float aperture = 0.03;
-	float focusDist = 2;
 };
 
 
@@ -54,6 +52,8 @@ public:
 	PathTracer();
 
 	RenderParams renderParams;
+
+	PathTracerCameraSetting cameraSetting;
 
 	void Init();
 
@@ -100,7 +100,7 @@ protected:
 	vector<shared_ptr<Sphere>> spheres;
 	vector<shared_ptr<Curve>> curves;
 
-	PathTracerCameraSetting curCameraSetting;
+	
 
 	// Render Params
 	

@@ -7,10 +7,7 @@ extern "C" __device__ void __direct_callable__naive_diffuse(float3& result, Path
     NaiveDiffuseData& data = *(NaiveDiffuseData*)traceResult.material.data;
     
     if (state.collectDirectLight || traceResult.directLightId == -1) {
-        float3 delta = traceResult.material.emission * state.attenuation * state.supposedColor;
-        if (dot(delta, delta) < 1e4f) {
-            result += traceResult.material.emission * state.attenuation * state.supposedColor;
-        }
+        result += traceResult.material.emission * state.attenuation * state.supposedColor;
     }
 
     if (traceResult.directLightId == -1) {

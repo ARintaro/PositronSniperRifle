@@ -92,9 +92,13 @@ struct DirectLightDescription {
 struct RenderParams {
 	int2 screenSize {512, 512};
 
-	int samplesPerLaunch = 128;
+	int samplesPerLaunch = 16;
 
 	float russianRouletteProbability = 0.8f;
+	float aperture = 0.03;
+	float focusDist = 2;
+
+	float maxResultDeltaSqr = 1000;
 
 	float3 skyLightDirection = make_float3(0, -1, 1);
 	float3 skyLightColor = make_float3(1.f, 1.f, 1.f);
