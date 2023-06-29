@@ -131,7 +131,6 @@ extern "C" __global__ void __closesthit__curve() {
 
     const ShaderBindingData& sbtData = *(const ShaderBindingData*)optixGetSbtDataPointer();
     const Material& material = sbtData.material;
-    const DeviceCurveData& data = sbtData.data.curve;
 
     const float3 position = optixGetWorldRayOrigin() + optixGetRayTmax() * optixGetWorldRayDirection();
     const float3 normal = make_float3(

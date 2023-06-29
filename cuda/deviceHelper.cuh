@@ -1,7 +1,6 @@
 #pragma once
 
 #include "renderParams.h"
-#include <crt\host_defines.h>
 #include <optix_device.h>
 #include "sutil\vec_math.h"
 #include <random.h>

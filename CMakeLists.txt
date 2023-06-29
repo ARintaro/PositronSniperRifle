@@ -1,20 +1,17 @@
+
+include_directories(include)
+include_directories(lib)
+
+file(GLOB_RECURSE HEADER_FILES *.h *.hpp)
+
+file(GLOB_RECURSE SOURCE_FILES *.cpp *.c)
+
+file(GLOB_RECURSE CUDA_FILES *.cu *.cuh)
+
+set(AllFiles ${HEADER_FILES} ${SOURCE_FILES} ${CUDA_FILES})
+
 OPTIX_add_sample_executable(positronSniperRifle target_name
-  optixLib.h
-  cudaBuffer.h
-  renderer.h
-  renderParams.h
-  window.h
-  disney.cuh
-  bezier.cuh
-  material.cuh
-  deviceHelper.cuh
-  tiny_obj_loader.h
-  shader.hpp
-  devicePrograms.cu
-  mesh.h
-  mesh.cpp
-  renderer.cpp
-  main.cpp
+  ${AllFiles}
   OPTIONS -rdc true
 )
 

@@ -2,7 +2,7 @@
 
 #include <vector>
 #include "renderParams.h"
-#include <positronSniperRifle\cudaBuffer.h>
+#include <cudaBuffer.h>
 #include "shader.hpp"
 #include <map>
 #include <set>

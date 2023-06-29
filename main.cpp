@@ -1,8 +1,8 @@
 #include "optixLib.h"
 #include "sutil\sutil.h"
-#include "mesh.h"
-#include "renderer.h"
-#include "window.h"
+#include "renderer/mesh.h"
+#include "renderer/renderer.h"
+#include "renderer/window.h"
 
 #include "sutil/CUDAOutputBuffer.h"
 

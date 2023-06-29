@@ -59,7 +59,7 @@ float3 DisneyBRDF(const float3& V, const float3& N, const float3& L,
     float NdotV = dot(N, V);
     if (NdotL < 0 || NdotV < 0) return make_float3(0);
 
-    float3 tangentHelper = abs(N.x > 0.99) ? make_float3(0, 0, 1) : make_float3(1, 0, 0);
+    float3 tangentHelper = abs(N.x > 0.99f) ? make_float3(0, 0, 1) : make_float3(1, 0, 0);
 
     float3 Y = normalize(cross(N, tangentHelper));
     float3 X = normalize(cross(N, Y));
