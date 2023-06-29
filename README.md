@@ -19,19 +19,19 @@ A toy unidirectional path tracer based on NVIDIA Optix7, used as my graphics exe
 
 ## Preview
 
-![robot](.\preview\robot.png)
+![robot](./preview/robot.png)
 
-![bezier](.\preview\bezier.png)
+![bezier](./preview/bezier.png)
 
-![dispersion](.\preview\dispersion.png)
+![dispersion](./preview/dispersion.png)
 
-![water](.\preview\water.png)
+![water](./preview/water.png)
 
-![simple](.\preview\simple.png)
+![simple](./preview/simple.png)
 
-![light](.\preview\light.png)
+![light](./preview/light.png)
 
-![camera](.\preview\camera.png)
+![camera](./preview/camera.png)
 
 ## TODO
 
@@ -54,4 +54,4 @@ A toy unidirectional path tracer based on NVIDIA Optix7, used as my graphics exe
 
 ## Why is it named Positron Sniper Rifle?
 
-![eva](.\preview\eva.png)
+![eva](./preview/eva.png)
