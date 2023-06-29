@@ -92,7 +92,7 @@ struct DirectLightDescription {
 struct RenderParams {
 	int2 screenSize {512, 512};
 
-	int samplesPerLaunch = 16;
+	int samplesPerLaunch = 32;
 
 	float russianRouletteProbability = 0.8f;
 	float aperture = 0.03;
